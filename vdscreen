@@ -60,6 +60,11 @@ iPad Pro 11 (M4)             = 1210x834
 iPad Pro 13 (M4)             = 1376x1032
 
 # iPhone（竖屏，正好铺满手机）
+# 注意：macOS 只对"足够大"的虚拟屏提供 HiDPI（实测逻辑宽度 ≳900）。
+# 手机尺寸拿不到 HiDPI，程序会自动退回 1:1 —— UI 比例正确，画面略软。
+# 想要更锐利可换用更宽的等价尺寸（代价是 UI 显得更小），例如：
+#   iPhone 18 Pro（锐）      = 603x1311
+#   iPhone 18 Pro（很锐）    = 900x1956
 iPhone 18 Pro                = 402x874
 iPhone 18 Pro Max            = 440x956
 iPhone 17 / 18 (6.3")        = 402x874
@@ -133,8 +138,17 @@ case "${1:-status}" in
     write_plist
     : > /tmp/vdscreen.log
     : > /tmp/vdscreen.err
-    if loaded; then launchctl kickstart -k "$DOMAIN/$LABEL"; else launchctl bootstrap "$DOMAIN" "$PLIST"; fi
+    # 必须先 bootout 再 bootstrap：kickstart 只会用 launchd 缓存的旧配置重启，
+    # 改了尺寸/名字它不会重读 plist，切换分辨率就会"没反应"。
+    if loaded; then
+      launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+      sleep 0.5
+    fi
+    launchctl bootstrap "$DOMAIN" "$PLIST"
     sleep 3
+    if [[ -z "$(current_pid)" ]]; then
+      print -ru2 -- "警告: 服务已加载但进程未起来，显示器可能没创建成功"
+    fi
     cat /tmp/vdscreen.log 2>/dev/null || true
     show_status
     ;;

@@ -231,7 +231,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// 跑 CLI 不阻塞菜单交互
     private func run(_ arguments: [String]) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            _ = CLI.run(arguments)
+            // 把 CLI 的回显也记进日志，失败时才能远程定位
+            let output = CLI.run(arguments).trimmingCharacters(in: .whitespacesAndNewlines)
+            log("CLI 返回: \(output.replacingOccurrences(of: "\n", with: " | "))")
             DispatchQueue.main.async { self?.refreshState() }
         }
     }
