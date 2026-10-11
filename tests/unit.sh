@@ -98,6 +98,23 @@ eq "按名字查预设"       1133x744 "$(preset_size 'iPad mini 7')"
 eq "名字含斜杠的预设"   1180x820 "$(preset_size 'iPad Air 11 / iPad 10-11')"
 eq "查不到预设返回空"   ""       "$(preset_size '不存在')"
 
+# ── LaunchAgent 标签：默认、旧版兼容、配置覆盖 ──
+label_of() { HOME="$1" VDS_LIB=1 zsh -c "source '$ROOT/vdscreen'; print -r -- \$LABEL"; }
+fresh="$TMP/lbl-fresh"; mkdir -p "$fresh"
+eq "默认标签" io.github.lyondan.vdscreen "$(label_of "$fresh")"
+legacy="$TMP/lbl-legacy"; mkdir -p "$legacy/Library/LaunchAgents"; : > "$legacy/Library/LaunchAgents/com.local.vdscreen.ipadmini7.plist"
+eq "旧标签的 plist 还在时沿用旧标签" com.local.vdscreen.ipadmini7 "$(label_of "$legacy")"
+both="$TMP/lbl-both"; mkdir -p "$both/Library/LaunchAgents"
+: > "$both/Library/LaunchAgents/com.local.vdscreen.ipadmini7.plist"; : > "$both/Library/LaunchAgents/io.github.lyondan.vdscreen.plist"
+eq "新旧并存时用新标签" io.github.lyondan.vdscreen "$(label_of "$both")"
+custom="$TMP/lbl-custom"; mkdir -p "$custom/.config/vdscreen" "$custom/Library/LaunchAgents"
+print 'LABEL="my.label"' > "$custom/.config/vdscreen/config"; : > "$custom/Library/LaunchAgents/com.local.vdscreen.ipadmini7.plist"
+eq "配置里的 LABEL 优先" my.label "$(label_of "$custom")"
+HOME="$custom" zsh "$ROOT/vdscreen" set size 1280x800 >/dev/null 2>&1
+eq "set 保留自定义 LABEL" 1 "$(grep -c '^LABEL="my.label"' "$custom/.config/vdscreen/config")"
+HOME="$legacy" zsh "$ROOT/vdscreen" set size 1280x800 >/dev/null 2>&1
+eq "set 不会把沿用的旧标签固化进配置" 0 "$(grep -c '^LABEL=' "$legacy/.config/vdscreen/config")"
+
 # ── 不碰显示器的命令（子进程跑，HOME 已隔离 → 没有 plist → 视为未开启）──
 out="$(zsh "$ROOT/vdscreen" state 2>&1)";           eq "state（未开启）" off "$out"
 zsh "$ROOT/vdscreen" zoom >/dev/null 2>&1;          eq "未开启时 zoom 报错" 1 $?

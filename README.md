@@ -177,7 +177,7 @@ HiDPI 的判定由系统内部决定，没有公开规则。在 macOS 27 上的�
 | --- | --- |
 | `~/.config/vdscreen/config` | 默认值：`LABEL`、`CORE`、`NAME`、`SIZE`（shell 变量，可手工编辑） |
 | `~/.config/vdscreen/presets` | 预设 |
-| `~/Library/LaunchAgents/com.local.vdscreen.ipadmini7.plist` | 开启期间的 LaunchAgent（`LABEL` 可改，用于并存多块虚拟屏） |
+| `~/Library/LaunchAgents/io.github.lyondan.vdscreen.plist` | 开启期间的 LaunchAgent（`LABEL` 可改，用于并存多块虚拟屏；1.1.0 及更早版本使用 `com.local.vdscreen.ipadmini7`，升级后沿用至下次 `vdscreen off`） |
 | `/tmp/vdscreen.log`、`/tmp/vdscreen.err` | 核心的标准输出 / 错误 |
 | `/tmp/vdscreen-bar.log` | 菜单栏应用的动作、CLI 回显、快捷键触发与注册失败 |
 
@@ -187,7 +187,7 @@ HiDPI 的判定由系统内部决定，没有公开规则。在 macOS 27 上的�
 vdscreen status                                     # 服务、进程、显示器
 cat /tmp/vdscreen.log /tmp/vdscreen.err             # 核心输出
 tail -30 /tmp/vdscreen-bar.log                      # 菜单栏应用日志
-launchctl print gui/$(id -u)/com.local.vdscreen.ipadmini7
+launchctl print gui/$(id -u)/io.github.lyondan.vdscreen
 ```
 
 | 现象 | 处理 |

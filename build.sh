@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 # VERSION 写进 Info.plist（发布流程会传入 tag 版本）；SIGN_IDENTITY 默认 ad-hoc，
 # 有开发者证书时可用 SIGN_IDENTITY="Developer ID Application: ..." 覆盖
-VERSION="${VERSION:-1.1.0}"
+VERSION="${VERSION:-1.2.0}"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 
 clang -fobjc-arc -framework Foundation -framework AppKit -framework CoreGraphics \
@@ -29,7 +29,7 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
 <dict>
   <key>CFBundleName</key><string>VDScreenBar</string>
   <key>CFBundleDisplayName</key><string>vdscreen</string>
-  <key>CFBundleIdentifier</key><string>com.local.vdscreen.bar</string>
+  <key>CFBundleIdentifier</key><string>io.github.lyondan.vdscreen.bar</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleExecutable</key><string>vdscreen-bar</string>
   <key>CFBundlePackageType</key><string>APPL</string>
@@ -39,7 +39,7 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
   <key>CFBundleURLTypes</key>
   <array>
     <dict>
-      <key>CFBundleURLName</key><string>com.local.vdscreen.bar</string>
+      <key>CFBundleURLName</key><string>io.github.lyondan.vdscreen.bar</string>
       <key>CFBundleURLSchemes</key><array><string>vdscreen</string></array>
     </dict>
   </array>

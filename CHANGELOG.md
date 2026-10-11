@@ -2,6 +2,13 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [1.2.0]
+
+### 变更
+- LaunchAgent 默认标签由 `com.local.vdscreen.ipadmini7` 改为 `io.github.lyondan.vdscreen`，
+  App 的 Bundle ID 改为 `io.github.lyondan.vdscreen.bar`（原标签与特定机型绑定，且 `com.local` 是占位前缀）。
+  已在运行的旧标签服务会被沿用，直到下一次 `vdscreen off`，无需手动迁移。
+
 ## [1.1.0]
 
 ### 新增

@@ -30,14 +30,27 @@ PRESETS="$CONFIG_DIR/presets"
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # 默认值；~/.config/vdscreen/config 里的同名变量会覆盖它们。
-# 改 LABEL 可以并存多块虚拟屏（Each label = one agent = one screen）。
-LABEL="com.local.vdscreen.ipadmini7"
+# 改 LABEL 可以并存多块虚拟屏（一个 LABEL = 一个 LaunchAgent = 一块屏）。
+LABEL=""
 CORE="$SELF_DIR/vdscreen-core"
 NAME="iPad mini 7"
 SIZE="1133x744"
 ZOOM=1
 
 [[ -f "$CONFIG" ]] && source "$CONFIG"
+
+# 配置里显式写了 LABEL 才算"自定义"；没写则用默认标签
+LABEL_FROM_CONFIG=""
+[[ -n "$LABEL" ]] && LABEL_FROM_CONFIG=1
+if [[ -z "$LABEL" ]]; then
+  LABEL="io.github.lyondan.vdscreen"
+  # 兼容 1.1.0 及更早的版本：它们的 LaunchAgent 叫这个名字。若它还在而新标签没有，
+  # 就继续沿用，直到下一次 `vdscreen off`（off 会删掉旧 plist，之后自然改用新标签）
+  LEGACY_LABEL="com.local.vdscreen.ipadmini7"
+  if [[ ! -f "$HOME/Library/LaunchAgents/$LABEL.plist" && -f "$HOME/Library/LaunchAgents/$LEGACY_LABEL.plist" ]]; then
+    LABEL="$LEGACY_LABEL"
+  fi
+fi
 
 # 必须在读取配置之后计算，否则配置里改 LABEL 会失效
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
@@ -380,7 +393,6 @@ case "${1:-status}" in
   config)
     mkdir -p "$CONFIG_DIR"
     [[ -f "$CONFIG" ]] || cat > "$CONFIG" <<EOF
-LABEL="$LABEL"
 CORE="$SELF_DIR/vdscreen-core"
 NAME="iPad mini 7"
 SIZE="1133x744"
@@ -393,7 +405,6 @@ EOF
     [[ -n "$key" && -n "$val" ]] || die "用法: vdscreen set <size|name|core> <值>"
     mkdir -p "$CONFIG_DIR"
     [[ -f "$CONFIG" ]] || cat > "$CONFIG" <<EOF
-LABEL="$LABEL"
 CORE="$CORE"
 NAME="$NAME"
 SIZE="$SIZE"
@@ -405,14 +416,14 @@ EOF
       *) die "只支持 size / name / core" ;;
     esac
     # 重写配置（保留 LABEL，否则自定义标签会被悄悄丢掉）
-    { echo "LABEL=\"$LABEL\""; echo "CORE=\"$CORE\""; echo "NAME=\"$NAME\""; echo "SIZE=\"$SIZE\""; } > "$CONFIG"
+    { [[ -n "$LABEL_FROM_CONFIG" ]] && echo "LABEL=\"$LABEL\""; echo "CORE=\"$CORE\""; echo "NAME=\"$NAME\""; echo "SIZE=\"$SIZE\""; } > "$CONFIG"
     say "已更新 $key = $val"
     loaded && say "（正在运行，执行 vdscreen restart 生效）"
     ;;
   install)
     [[ -x "$CORE" ]] || { say "先编译核心…"; "$SELF_DIR/build.sh"; }
     mkdir -p "$CONFIG_DIR"
-    { echo "LABEL=\"$LABEL\""; echo "CORE=\"$SELF_DIR/vdscreen-core\""; echo "NAME=\"$NAME\""; echo "SIZE=\"$SIZE\""; } > "$CONFIG"
+    { [[ -n "$LABEL_FROM_CONFIG" ]] && echo "LABEL=\"$LABEL\""; echo "CORE=\"$SELF_DIR/vdscreen-core\""; echo "NAME=\"$NAME\""; echo "SIZE=\"$SIZE\""; } > "$CONFIG"
     mkdir -p "$HOME/bin"
     cp "$SELF_DIR/vdscreen" "$HOME/bin/vdscreen"
     chmod +x "$HOME/bin/vdscreen"
