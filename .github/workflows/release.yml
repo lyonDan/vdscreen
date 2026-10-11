@@ -71,9 +71,9 @@ jobs:
           v="${{ steps.ver.outputs.version }}"
           mkdir dist
           ditto -c -k --keepParent VDScreenBar.app "dist/VDScreenBar-$v-arm64.zip"
-          # DMG：拖入 /Applications 即装（符号链接放工作目录，runner 的根目录只读）
-          mkdir -p dmg && ln -s /Applications dmg/Applications
-          hdiutil create -volname VDScreenBar -srcfolder VDScreenBar.app -srcfolder dmg \
+          # DMG：拖入 /Applications 即装（staging 目录放 app + Applications 链接，卷根才是平的）
+          mkdir -p dmg && ln -s /Applications dmg/Applications && cp -R VDScreenBar.app dmg/
+          hdiutil create -volname VDScreenBar -srcfolder dmg \
             -ov -format UDZO "dist/VDScreenBar-$v.dmg"
           rm -r dmg
           (cd dist && shasum -a 256 *.zip *.dmg > SHA256SUMS.txt && cat SHA256SUMS.txt)
