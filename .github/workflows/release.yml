@@ -72,7 +72,7 @@ jobs:
           mkdir dist
           ditto -c -k --keepParent VDScreenBar.app "dist/VDScreenBar-$v-arm64.zip"
           # DMG：拖入 /Applications 即装（符号链接放工作目录，runner 的根目录只读）
-          ln -s /Applications dmg/Applications
+          mkdir -p dmg && ln -s /Applications dmg/Applications
           hdiutil create -volname VDScreenBar -srcfolder VDScreenBar.app -srcfolder dmg \
             -ov -format UDZO "dist/VDScreenBar-$v.dmg"
           rm -r dmg
