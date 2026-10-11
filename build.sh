@@ -52,6 +52,11 @@ sed -i '' "s/__VERSION__/$VERSION/" "$APP/Contents/Info.plist"
 # 清掉扩展属性后做 ad-hoc 签名，把 Info.plist 与图标资源封进 bundle；
 # 否则系统可能不认 CFBundleIconFile，Finder/Dock 里图标一直是空白
 xattr -cr "$APP"
-codesign --force --deep -s "$SIGN_IDENTITY" "$APP"
+# 正式身份（Developer ID）需要 hardened runtime + 安全时间戳才能公证；ad-hoc 不需要。
+# 内嵌的核心是独立 Mach-O，先单独签，再签外层 bundle（--deep 对 Resources 里的可执行文件不可靠）
+SIGN_FLAGS=()
+[[ "$SIGN_IDENTITY" != "-" ]] && SIGN_FLAGS=(--options runtime --timestamp)
+codesign --force "${SIGN_FLAGS[@]}" -s "$SIGN_IDENTITY" "$APP/Contents/Resources/vdscreen-core"
+codesign --force "${SIGN_FLAGS[@]}" -s "$SIGN_IDENTITY" "$APP"
 
 echo "菜单栏App: $(pwd)/$APP"
