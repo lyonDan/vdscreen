@@ -168,11 +168,12 @@ struct MenuContent: View {
 
         Text("预设分辨率")
         ForEach(model.presets) { preset in
-            Button {
-                model.apply(preset: preset)
-            } label: {
-                Text((model.currentMatches(preset) ? "✓ " : "    ") + preset.name + "　" + preset.size)
-            }
+            // 用 Toggle 是为了拿到 macOS 菜单原生的勾选样式
+            Toggle(preset.name + "　" + preset.size,
+                   isOn: Binding(
+                       get: { model.currentMatches(preset) },
+                       set: { isOn in if isOn { model.apply(preset: preset) } }
+                   ))
         }
 
         Divider()
