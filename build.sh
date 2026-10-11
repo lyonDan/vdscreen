@@ -13,7 +13,7 @@ cp vdscreen "$APP/Contents/Resources/vdscreen"
 cp vdscreen-core "$APP/Contents/Resources/vdscreen-core"
 chmod +x "$APP/Contents/Resources/vdscreen" "$APP/Contents/Resources/vdscreen-core"
 
-swiftc -O -parse-as-library -o "$APP/Contents/MacOS/vdscreen-bar" vdscreen-bar.swift \
+swiftc -O -o "$APP/Contents/MacOS/vdscreen-bar" vdscreen-bar.swift \
        -framework SwiftUI -framework AppKit
 
 cat > "$APP/Contents/Info.plist" <<'EOF'
