@@ -205,7 +205,7 @@ launchctl print gui/$(id -u)/io.github.lyondan.vdscreen
 ## 卸载
 
 ```sh
-vdscreen uninstall                              # 关闭虚拟屏并移除 ~/bin/vdscreen
+vdscreen uninstall                              # 关闭虚拟屏并移除 ~/bin 下的 vdscreen
 rm -rf ~/Applications/VDScreenBar.app           # 菜单栏应用（如加入过登录项，也请移除）
 rm -rf ~/.config/vdscreen                       # 配置与预设（可选）
 brew uninstall vdscreen                         # 若通过 Homebrew 安装

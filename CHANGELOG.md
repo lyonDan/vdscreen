@@ -2,6 +2,12 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [1.2.4]
+
+### 修复
+- 显示器名字含正则元字符（如 `.` `*`）时 `status` / DPI 核对可能匹配失败：改用字面匹配
+- `vdscreen uninstall` 漏删 `~/bin/vdscreen-core`（预编译包安装方式会装这个文件）
+
 ## [1.2.3]
 
 ### 新增
