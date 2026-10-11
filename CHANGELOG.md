@@ -2,6 +2,13 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [1.2.5]
+
+### 变更
+- **Homebrew formula 改为直接安装 Release 预编译包**（签名公证过的 zip），不再本机编译，
+  安装不再需要 Xcode / Command Line Tools，也不会再遇到「Command Line Tools are too outdated」
+- formula 仅支持 arm64（与预编译包一致；Intel Mac 请从源码构建）
+
 ## [1.2.4]
 
 ### 修复

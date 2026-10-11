@@ -78,12 +78,14 @@ jobs:
           rm -r dmg
           (cd dist && shasum -a 256 *.zip *.dmg > SHA256SUMS.txt && cat SHA256SUMS.txt)
 
-      - name: 生成 Homebrew formula（对应本次 tag 的源码包）
+      - name: 生成 Homebrew formula（指向预编译包，不要求用户本机编译）
         if: github.ref_type == 'tag'
         run: |
-          url="https://github.com/${{ github.repository }}/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz"
-          sha="$(curl -fsSL "$url" | shasum -a 256 | cut -d' ' -f1)"
-          sed -e "s|__URL__|$url|" -e "s|__SHA256__|$sha|" packaging/homebrew/vdscreen.rb > dist/vdscreen.rb
+          v="${{ steps.ver.outputs.version }}"
+          url="https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/VDScreenBar-$v-arm64.zip"
+          sha="$(shasum -a 256 "dist/VDScreenBar-$v-arm64.zip" | cut -d' ' -f1)"
+          sed -e "s|__URL__|$url|" -e "s|__VERSION__|$v|" -e "s|__SHA256__|$sha|" \
+              packaging/homebrew/vdscreen.rb > dist/vdscreen.rb
 
       - uses: actions/upload-artifact@v4
         with:
