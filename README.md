@@ -36,6 +36,14 @@ vdscreen on                       # 或者直接从菜单栏点选
 
 想让它开机就在菜单栏里：系统设置 → 通用 → 登录项，把 `VDScreenBar.app` 加进去即可。
 
+App 包内自带一份 `vdscreen` CLI 与 `vdscreen-core`，因此它不依赖仓库路径、可以单独
+拷贝到任何地方运行；反过来说，改完代码要刷新安装的副本：
+
+```sh
+./build.sh
+cp -R VDScreenBar.app ~/Applications/     # 覆盖旧副本
+```
+
 ## 预设分辨率
 
 预设存放在 `~/.config/vdscreen/presets`，纯文本，每行 `名字 = 宽x高`（逻辑尺寸）。
