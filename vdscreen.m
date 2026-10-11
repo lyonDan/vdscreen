@@ -99,7 +99,10 @@ int main(int argc, char *argv[]) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
                        dispatch_get_main_queue(), ^{
             if (currentUISizeMatches(display, lw, lh)) {
-                printf("HiDPI 已生效：背板 %dx%d / UI %dx%d\n", lw * 2, lh * 2, lw, lh);
+                // 注意：这里只能确认"逻辑尺寸正确"，拿不到背板是否 2×
+                // （CoreGraphics 对虚拟屏的 pixel 查询不返回真实背板），
+                // 真正的 HiDPI 与否由 CLI 用 system_profiler 如实汇报。
+                printf("已就绪：UI %dx%d\n", lw, lh);
                 fflush(stdout);
                 return;
             }

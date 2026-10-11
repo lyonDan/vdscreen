@@ -7,6 +7,7 @@
 #   vdscreen status              查看状态（不带参数时的默认动作）
 #   vdscreen presets             列出预设分辨率
 #   vdscreen preset <名字>       按预设启动（如: vdscreen preset "iPad mini 7"）
+#   vdscreen rotate              横竖切换（交换当前宽高）
 #   vdscreen state               机器可读状态: "on <名字> <宽x高>" 或 "off"
 #   vdscreen config              查看配置文件
 #   vdscreen set size 1133x744   改默认尺寸
@@ -89,6 +90,51 @@ preset_size() {
     }' "$PRESETS"
 }
 
+# 当前生效的尺寸/名字：以 plist 为准（没在运行时退回配置值）
+current_size() {
+  local value=""
+  [[ -f "$PLIST" ]] && value="$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:1" "$PLIST" 2>/dev/null)"
+  print -r -- "${value:-$SIZE}"
+}
+
+current_name() {
+  local value=""
+  [[ -f "$PLIST" ]] && value="$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:2" "$PLIST" 2>/dev/null)"
+  print -r -- "${value:-$NAME}"
+}
+
+# macOS 不接受高度 < 480 的显示器（会被替换成 800x600 之类的默认模式，
+# 例如手机横屏的 874x402）。这里保持宽高比、等比放大到高 480。
+normalize_size() {
+  local size="$1" w h
+  w="${size%%x*}"
+  h="${size##*x}"
+  [[ "$w" =~ ^[0-9]+$ && "$h" =~ ^[0-9]+$ ]] || { print -r -- "$size"; return }
+  if (( h < 480 )); then
+    local nw=$(( (w * 480 + h / 2) / h ))
+    print -ru2 -- "提示: 高 $h 低于系统下限 480，已保持宽高比放大为 ${nw}x480"
+    print -r -- "${nw}x480"
+  else
+    print -r -- "${w}x${h}"
+  fi
+}
+
+# 如实汇报实际结果：背板尺寸 vs 逻辑尺寸。
+# 只有 system_profiler 反映真实背板（CoreGraphics 对虚拟屏的 pixel 查询不可信）。
+report_dpi() {
+  local name="$1" block res ui
+  block="$(system_profiler SPDisplaysDataType 2>/dev/null | grep -A 3 "^        $name:" | head -4)"
+  [[ -z "$block" ]] && return
+  res="$(print -r -- "$block" | awk '/Resolution:/{n=0; for(i=1;i<=NF;i++) if($i ~ /^[0-9]+$/) {printf "%s", $i; n++; if(n==1) printf "x"; else exit}}')"
+  ui="$(print -r -- "$block" | awk '/UI Looks like:/{n=0; for(i=1;i<=NF;i++) if($i ~ /^[0-9]+$/) {printf "%s", $i; n++; if(n==1) printf "x"; else exit}}')"
+  [[ -z "$res" || -z "$ui" ]] && return
+  if [[ "$res" == "$ui" ]]; then
+    print -r -- "  实际: 背板 $res / 逻辑 $ui —— 非 HiDPI，画面会略软"
+  else
+    print -r -- "  实际: 背板 $res / 逻辑 $ui —— HiDPI"
+  fi
+}
+
 write_plist() {
   [[ -x "$CORE" ]] || die "找不到可执行文件 $CORE（先跑 ./build.sh，或 vdscreen install）"
   mkdir -p "$(dirname "$PLIST")"
@@ -135,6 +181,7 @@ case "${1:-status}" in
   on)
     [[ -n "${2:-}" ]] && SIZE="$2"
     [[ -n "${3:-}" ]] && NAME="$3"
+    SIZE="$(normalize_size "$SIZE")"
     write_plist
     : > /tmp/vdscreen.log
     : > /tmp/vdscreen.err
@@ -150,6 +197,7 @@ case "${1:-status}" in
       print -ru2 -- "警告: 服务已加载但进程未起来，显示器可能没创建成功"
     fi
     cat /tmp/vdscreen.log 2>/dev/null || true
+    report_dpi "$NAME"
     show_status
     ;;
   off)
@@ -165,13 +213,19 @@ case "${1:-status}" in
   state)
     # 机器可读：供菜单栏等程序解析
     if [[ -n "$(current_pid)" && -f "$PLIST" ]]; then
-      local size name
-      size="$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:1" "$PLIST" 2>/dev/null || print -r -- "$SIZE")"
-      name="$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:2" "$PLIST" 2>/dev/null || print -r -- "$NAME")"
-      say "on $name $size"
+      say "on $(current_name) $(current_size)"
     else
       say "off"
     fi
+    ;;
+  rotate)
+    # 横竖切换：把当前宽高对调（手机竖屏 ↔ 横屏）
+    local size width height
+    size="$(current_size)"
+    width="${size%%x*}"
+    height="${size##*x}"
+    [[ "$width" =~ ^[0-9]+$ && "$height" =~ ^[0-9]+$ ]] || die "当前尺寸无法解析: $size"
+    "$0" on "${height}x${width}" "$(current_name)"
     ;;
   presets)
     ensure_presets

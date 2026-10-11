@@ -59,6 +59,15 @@ struct Preset: Hashable {
     let size: String
 }
 
+/// 由 "宽x高" 推断朝向，用于菜单里显示
+func orientationLabel(_ size: String) -> String {
+    let parts = size.split(separator: "x")
+    guard parts.count == 2, let w = Int(parts[0]), let h = Int(parts[1]) else { return "" }
+    if w > h { return "横屏" }
+    if h > w { return "竖屏" }
+    return "方形"
+}
+
 // MARK: - 主逻辑
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
@@ -133,13 +142,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
 
         let header = NSMenuItem(
-            title: isOn ? "已开启：\(currentName)　\(currentSize)" : "虚拟屏未开启",
+            title: isOn
+                ? "已开启：\(currentName)　\(currentSize)（\(orientationLabel(currentSize))）"
+                : "虚拟屏未开启",
             action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
 
         if isOn {
             add(to: menu, title: "关闭虚拟屏", action: #selector(turnOff))
+            add(to: menu, title: "横竖切换", action: #selector(rotate))
         }
 
         menu.addItem(.separator())
@@ -181,6 +193,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func turnOff() {
         log("动作: off")
         run(["off"])
+    }
+
+    @objc private func rotate() {
+        log("动作: rotate")
+        run(["rotate"])
     }
 
     @objc private func applyPreset(_ sender: NSMenuItem) {
