@@ -157,10 +157,11 @@ final class HUD {
         panel.ignoresMouseEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
 
-        let blur = NSVisualEffectView()
-        blur.material = .hudWindow
-        blur.state = .active
+        // 不用 NSVisualEffectView：它的材质会跟随系统外观，浅色模式下渲染成浅色，
+        // 与写死的白色文字叠在一起就看不清。这里用与外观无关的深色半透明实底。
+        let blur = NSView()
         blur.wantsLayer = true
+        blur.layer?.backgroundColor = NSColor(calibratedWhite: 0.1, alpha: 0.92).cgColor
         blur.layer?.cornerRadius = 14
         blur.layer?.masksToBounds = true
 

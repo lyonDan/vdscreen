@@ -2,6 +2,11 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [1.2.1]
+
+### 修复
+- 悬浮提示在浅色外观下白底白字看不清：改用与系统外观无关的深色背景
+
 ## [1.2.0]
 
 ### 变更
