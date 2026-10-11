@@ -2,6 +2,12 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [1.2.2]
+
+### 变更
+- Release 预编译包改为 **Developer ID 签名 + Apple 公证**：解压后可直接打开，无需手动放行。
+  未配置签名 Secrets 的 fork 仍为 ad-hoc 签名。从源码构建（含 Homebrew）不受影响
+
 ## [1.2.1]
 
 ### 修复

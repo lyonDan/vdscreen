@@ -50,14 +50,14 @@ cp -R VDScreenBar.app ~/Applications/
 ### 预编译包
 
 [Releases](https://github.com/lyonDan/vdscreen/releases) 提供 `VDScreenBar-<版本>-arm64.zip`（仅 Apple Silicon，
-Intel Mac 请从源码构建）。该包**未使用 Developer ID 签名，也未经 Apple 公证**，下载后被系统隔离，
-首次打开需要手动放行：
+Intel Mac 请从源码构建）。包内的 App 使用 Developer ID 签名并经 Apple 公证，解压后可直接打开，
+Gatekeeper 不会拦截：
 
 ```sh
-xattr -dr com.apple.quarantine VDScreenBar.app
+unzip VDScreenBar-<版本>-arm64.zip && cp -R VDScreenBar.app ~/Applications/
 ```
 
-如果不愿放行未公证的二进制，请使用上面两种从源码构建的方式。
+若校验包的完整性，可对照 Release 附件中的 `SHA256SUMS.txt`。
 
 ## 快速开始
 
@@ -235,7 +235,6 @@ macOS 不接受高度小于 480 的显示器，此类尺寸（如手机横屏 87
 
 - **私有 API**：`CGVirtualDisplay` 不在 Apple SDK 的兼容性承诺内，系统更新可能使其失效，也无法上架 App Store。
   同类工具（BetterDisplay、vdisplay、DeskPad 等）建立在同一 API 上，风险相同。
-- **签名**：菜单栏应用仅做 ad-hoc 签名，没有 Developer ID 与公证；因此不提供免确认的二进制分发（见[安装](#安装)）。
 - **平台**：仅在 macOS 27 / Apple Silicon 上测试；预编译包仅含 arm64。
 - 同一时刻不能存在两块身份完全相同的虚拟屏。
 - 只负责「建屏 + 定分辨率」，不含多配置档、窗口布局、DDC 亮度等。
