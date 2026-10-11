@@ -43,4 +43,9 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
 </plist>
 EOF
 
+# 清掉扩展属性后做 ad-hoc 签名，把 Info.plist 与图标资源封进 bundle；
+# 否则系统可能不认 CFBundleIconFile，Finder/Dock 里图标一直是空白
+xattr -cr "$APP"
+codesign --force --deep -s - "$APP"
+
 echo "菜单栏App: $(pwd)/$APP"
