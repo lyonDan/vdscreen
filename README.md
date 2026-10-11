@@ -4,11 +4,11 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 在 macOS 上创建 **HiDPI 虚拟显示器**的命令行工具与菜单栏应用。适用于没有物理显示器的 Mac（远程桌面、
-串流、无头主机），或需要一块指定分辨率、指定缩放的额外屏幕。
+串流、无头主机），或需要一块指定分辨率的额外屏幕。
 
-- 以 iPad、iPhone 的真实逻辑分辨率预设，一条命令切换
+- 以 iPad、iPhone 的真实逻辑分辨率预设，一条命令切换；也可自定义分辨率
 - 真 HiDPI：背板为逻辑分辨率的 2 倍，系统无法提供时自动退回 1:1，并如实报告
-- 横竖屏切换、界面缩放
+- 横竖切换（方向锁定，换预设后保持）、一键切换主屏
 - 菜单栏应用，另有全局快捷键、URL scheme，菜单栏图标被挤掉时仍可操作
 - 无第三方依赖，只需系统自带的编译工具
 
@@ -66,8 +66,7 @@ curl -fsSL https://raw.githubusercontent.com/lyonDan/vdscreen/main/install.sh | 
 ```sh
 vdscreen on                          # 按默认配置开启（iPad mini 7，1133×744）
 vdscreen preset "iPhone 18 Pro"      # 切换到预设
-vdscreen rotate                      # 横竖屏切换
-vdscreen zoom 120                    # 界面放大到 120%
+vdscreen orientation 竖屏            # 横竖切换：锁定竖屏（换预设后保持）
 vdscreen status                      # 查看状态
 vdscreen off                         # 关闭
 ```
@@ -89,10 +88,8 @@ $ vdscreen preset "iPad mini 7"
 | `vdscreen state` | 机器可读：`on <名字> <宽x高>` 或 `off` |
 | `vdscreen presets` | 列出预设 |
 | `vdscreen preset <名字>` | 按预设开启 |
-| `vdscreen rotate` | 横竖屏切换（一次性），保持当前缩放 |
-| `vdscreen orientation [横屏\|竖屏\|auto]` | 方向锁定：选定后换预设/分辨率也保持该方向；`auto` 跟随预设 |
+| `vdscreen orientation [横屏\|竖屏\|auto]` | 横竖切换：选定后换预设/分辨率也保持该方向（勾选项）；`auto` 跟随预设 |
 | `vdscreen main` | 一键切换主屏：虚拟屏 ↔ 第一个其他显示器（见[主屏切换](#主屏切换)） |
-| `vdscreen zoom [倍数\|in\|out\|max\|reset]` | 界面缩放；不带参数显示当前值与清晰上限 |
 | `vdscreen config` | 查看配置 |
 | `vdscreen set <size\|name\|core> <值>` | 修改默认尺寸 / 名字 / 核心路径 |
 | `vdscreen install` / `uninstall` | 安装 / 卸载 `~/bin/vdscreen` |
@@ -102,9 +99,9 @@ $ vdscreen preset "iPad mini 7"
 ## 菜单栏应用
 
 `VDScreenBar.app` 是纯菜单栏应用（`LSUIElement`，默认没有 Dock 图标和窗口）。它只是 `vdscreen` 命令行的前端，
-与命令行共享同一份状态和配置。菜单包含：当前状态、关闭、横竖切换（一次性）、方向锁定（跟随预设 / 横屏 / 竖屏勾选）、
-切换为主屏、界面缩放子菜单、预设列表（当前项带 ✓）、
-自定义分辨率、重新载入预设、打开配置目录，以及「在 Dock 显示图标」「登录时自动启动」两个开关。
+与命令行共享同一份状态和配置。菜单包含：当前状态、开关、切换为主屏、横竖切换子菜单（跟随预设 / 横屏 / 竖屏勾选）、
+预设列表（当前项带 ✓）、自定义分辨率（宽、高分开填）、重新载入预设、打开配置目录，
+以及「在 Dock 显示图标」「登录时自动启动」两个开关。
 
 ### 菜单栏图标不可见时
 
@@ -112,22 +109,23 @@ $ vdscreen preset "iPad mini 7"
 
 | 入口 | 用法 |
 | --- | --- |
-| 全局快捷键 | `⌥⌘0` 开/关 · `⌥⌘R` 横竖切换 · `⌥⌘=` / `⌥⌘-` 放大 / 缩小界面 · `⌥⌘M` 切换主屏 · `⌥⌘1`…`⌥⌘9` 切到第 1…9 条预设 · `⌃⌥⌘V` 在鼠标处弹出完整菜单 |
+| 全局快捷键 | `⌥⌘0` 开/关 · `⌥⌘R` 横竖切换 · `⌥⌘M` 切换主屏 · `⌥⌘1`…`⌥⌘9` 切到第 1…9 条预设 · `⌃⌥⌘V` 在鼠标处弹出完整菜单 |
 | 悬浮提示 | 快捷键操作后，屏幕下方显示结果，如「✓ iPad mini 7 · 1133x744 · 横屏 · HiDPI」 |
-| URL scheme | `open vdscreen://rotate`，见下 |
+| URL scheme | `open vdscreen://orientation/竖屏`，见下 |
 | Dock 图标 | 在菜单中勾选「在 Dock 显示图标」；点击或右键均可弹出菜单 |
 | 重新打开应用 | 从 Spotlight / 启动台再次打开，会在鼠标处弹出菜单 |
-| 命令行 | `vdscreen rotate`；远程时可通过 SSH 执行 |
+| 命令行 | `vdscreen orientation 竖屏`；远程时可通过 SSH 执行 |
 
 快捷键通过 Carbon `RegisterEventHotKey` 注册，**不需要辅助功能权限**。若某个组合已被其他程序占用，
 会在日志中记录「注册失败」（见[故障排查](#故障排查)）。`⌥⌘1`…`⌥⌘9` 对应预设文件的行序。
 
-**方向锁定**（`vdscreen orientation`，菜单「方向」子菜单）：勾选横屏或竖屏后，换预设、换分辨率
-都保持所选方向（比如锁定竖屏后，横屏的 iPad 预设也会以竖屏摆向创建）；`auto` 取消锁定，方向跟随预设。
-对正在运行的虚拟屏设置时会立即按所选方向重摆。`rotate` 保持原样：一次性交换宽高。
+**横竖切换**（`vdscreen orientation`，菜单「横竖切换」子菜单，`⌥⌘R` 快速切换）：勾选横屏或竖屏后，
+换预设、换分辨率都保持所选方向（比如锁定竖屏后，横屏的 iPad 预设也会以竖屏摆向创建）；
+`auto` 取消锁定，方向跟随预设。对正在运行的虚拟屏设置时会立即按所选方向重摆。
 
-**URL scheme**：`vdscreen://<命令>`，命令为 `on`、`off`、`toggle`、`rotate`、`main`、`menu`、`preset/<名字>`、
-`size/<宽x高>`、`zoom/<倍数|in|out|max|reset>`。仅在本机可用（脚本、SSH、Mac 上的快捷指令）；
+**URL scheme**：`vdscreen://<命令>`，命令为 `on`、`off`、`toggle`、`main`、`menu`、
+`orientation/<横屏|竖屏|auto>`、`preset/<名字>`、`size/<宽x高>`（旧写法 `rotate` 等效于横竖切换）。
+仅在本机可用（脚本、SSH、Mac 上的快捷指令）；
 iOS 的快捷指令无法打开 Mac 的自定义 scheme。任何网页都可以请求打开 `vdscreen://…`，浏览器会先确认；
 不需要此功能可删去 `build.sh` 里 `Info.plist` 的 `CFBundleURLTypes`。
 
@@ -155,33 +153,6 @@ iPad 预设为横屏，iPhone 预设为竖屏；未用到的机型预设可自�
 
 iPhone 预设使用的是手机的**像素尺寸**（如 804×1748），而不是点尺寸（402×874）。点尺寸的画布只有 402 点宽，
 普通 Mac 窗口放不下，且过小的虚拟屏无法获得 HiDPI。基础款 iPhone 18 暂无公开的屏幕参数，沿用 iPhone 17 的 6.3" 面板。
-
-## 界面缩放
-
-`vdscreen zoom <倍数>` 将请求的尺寸除以倍数得到实际画布，界面因此显得更大：125% 时 804×1748 的画布变为 643×1398。
-
-- 可用写法：`125`、`125%`、`1.25`、`in`、`out`、`max`、`reset`；范围 50%–200%
-- `rotate` 保持当前缩放；切换预设或手动 `on` 会还原为 100%
-- `zoom in` 先停在「清晰上限」，再按一次才进入略软区；`zoom max` 直接到清晰上限
-
-画布缩小到一定程度后，macOS 不再提供 HiDPI 模式。程序据此估算每个尺寸的**清晰上限**（超过后退回 1:1，
-画面略软，但界面比例仍然正确），并在切换后核对真实结果，如实标注「非 HiDPI」，不会拦截你。
-
-| 请求尺寸 | 估算的清晰上限 |
-| --- | --- |
-| 804×1748（手机竖屏） | 120% |
-| 1748×804（手机横屏） | 134% |
-| 1133×744（iPad mini 横屏） | 124% |
-| 744×1133（iPad mini 竖屏） | 111% |
-
-HiDPI 的判定由系统内部决定，没有公开规则。在 macOS 27 上的观察结果：
-
-| 提供 HiDPI | 不提供 HiDPI |
-| --- | --- |
-| 660×800 · 660×900 · 660×1000 · 700×1000 · 800×600 · 960×540 · 1000×660 · 1300×600 | 500×1100 · 600×800 · 640×960 · 650×1000 · 660×700 · 720×600 · 760×600 · 900×480 · 1000×480 |
-
-估算公式（宽 ≥ 670、高 ≥ 600、面积 ≥ 48 万点）取了保守的余量，只用于菜单标注与 `zoom max`；
-最终是否 HiDPI 以切换后的实际检测为准。缩小界面（< 100%）会使画布变大，观察到 67%–75% 仍为 HiDPI。
 
 ## 主屏切换
 
@@ -214,7 +185,7 @@ launchctl print gui/$(id -u)/io.github.lyondan.vdscreen
 
 | 现象 | 处理 |
 | --- | --- |
-| 切换到某个尺寸后画面发软 | 该尺寸系统不提供 HiDPI，输出里会标注「非 HiDPI」；换更大的尺寸或降低缩放 |
+| 切换到某个尺寸后画面发软 | 该尺寸系统不提供 HiDPI 模式，输出里会标注「非 HiDPI」（画布过小或过窄时容易发生）；换更大的尺寸 |
 | 提示「核心没有在预期时间内就绪」 | 查看 `/tmp/vdscreen.err`；同一身份的虚拟屏已在运行也会导致创建失败 |
 | 某个快捷键无反应 | 在 `/tmp/vdscreen-bar.log` 中搜「注册失败」，说明组合被其他程序占用 |
 | `brew install` 报 `Your Command Line Tools are too outdated` | 现在的 formula 直接装预编译包，正常不会触发编译。若是在装其他 formula / 依赖时遇到：这是 Homebrew 对编译工具版本的检查，与本项目无关。在「系统设置 → 软件更新」里更新 Command Line Tools；没有更新时执行 `sudo rm -rf /Library/Developer/CommandLineTools && xcode-select --install` |
@@ -248,7 +219,7 @@ brew uninstall vdscreen                         # 若通过 Homebrew 安装
 若某个身份曾以非 HiDPI 使用，之后它的模式表里就不再提供 HiDPI 变体。让尺寸与 HiDPI 标志参与身份，
 可避免不同尺寸互相污染。代价是更换尺寸会被系统视为新显示器，窗口不会自动迁移；同一尺寸反复切换则身份不变，窗口布局得以保留。
 
-macOS 不接受高度小于 480 的显示器，此类尺寸（如手机横屏 874×402）会按宽高比放大到高 480；`rotate` 以最初
+macOS 不接受高度小于 480 的显示器，此类尺寸（如手机横屏 874×402）会按宽高比放大到高 480；横竖切换以最初
 请求的尺寸为准，因此连续两次切换可原路返回。
 
 ## 已知限制
@@ -273,14 +244,16 @@ SIGN_IDENTITY="Developer ID Application: …" ./build.sh    # 使用证书签名
 
 ```sh
 tests/unit.sh                               # 单元测试，不碰显示器，数秒完成
-tests/integration.sh --yes                  # 集成测试，会真的切换虚拟屏，约 3 分钟，结束后恢复原状态
+tests/integration.sh --yes                  # 集成测试：两种分辨率×横竖来回，约 1 分钟
+tests/integration.sh --yes --all            # 加上全部预设逐条验证，约 3 分钟
 ```
 
-- **单元测试**覆盖命令行的纯逻辑（尺寸归一化、缩放计算、清晰上限估算、参数解析、plist 读写、预设文件）和不碰显示器的命令；
+- **单元测试**覆盖命令行的纯逻辑（尺寸归一化、方向锁定、参数解析、plist 读写、预设文件）和不碰显示器的命令；
   在隔离的 `HOME` 与不存在的 launchd 标签下运行，不会影响真实环境。CI 与提交前钩子都会运行它。
   启用提交钩子：`git config core.hooksPath .githooks`
-- **集成测试**验证全部预设的尺寸与 HiDPI、横竖切换往返、低于高度下限的尺寸、界面缩放，
-  可用于确认某个 macOS 版本上行为是否仍然成立。需要图形会话，因此不在 CI 中运行。
+- **集成测试**验证两种分辨率 × 横竖来回、方向锁定换尺寸后保持、低于高度下限的尺寸（约 1 分钟）；
+  `--all` 时逐条验证全部预设的尺寸与 HiDPI，用于确认某个 macOS 版本上行为是否仍然成立（macOS 升级后建议跑一次）。
+  需要图形会话，因此不在 CI 中运行。
 - 菜单栏应用（Swift）目前没有自动化测试。
 
 ### 发布

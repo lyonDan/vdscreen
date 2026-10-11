@@ -2,6 +2,20 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [1.3.0]
+
+按实际使用需求精简为三个核心能力：**预设/自定义分辨率、横竖切换、主屏切换**。
+
+### 变更
+- **移除界面缩放**（`vdscreen zoom` / `zoominfo`、菜单缩放子菜单、`⌥⌘=` `⌥⌘-` 快捷键、
+  `vdscreen://zoom`）。画布尺寸恒等于所选分辨率；旧 plist 里的 `Zoom` 键被忽略
+- **横竖切换与方向锁定合并为一项**：菜单「横竖切换」子菜单（跟随预设 / 横屏 / 竖屏勾选，
+  未开启时也可设置）；`⌥⌘R` 改为在锁定横屏 / 竖屏间快速切换
+- **移除一次性 `vdscreen rotate` 命令**：`vdscreen orientation 横屏|竖屏|auto` 完全覆盖其能力；
+  URL scheme 的 `vdscreen://rotate` 保留为横竖切换的旧写法
+- `orientation` 设置方向不变时不再重建屏幕（重建一次 5–10 秒）
+- 集成测试默认只测两种分辨率 × 横竖来回（约 1 分钟），全部预设逐条验证改为 `--all` 参数
+
 ## [1.2.8]
 
 ### 新增

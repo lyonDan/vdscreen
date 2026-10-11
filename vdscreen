@@ -7,13 +7,9 @@
 #   vdscreen status              查看状态（不带参数时的默认动作）
 #   vdscreen presets             列出预设分辨率
 #   vdscreen preset <名字>       按预设启动（如: vdscreen preset "iPad mini 7"）
-#   vdscreen rotate              横竖切换（一次性，交换当前宽高，缩放保持）
-#   vdscreen orientation         查看方向设置（跟随预设 / 锁定横屏 / 锁定竖屏）
+#   vdscreen orientation         查看横竖设置（跟随预设 / 锁定横屏 / 锁定竖屏）
 #   vdscreen orientation 横屏    锁定横屏（换预设/分辨率后保持；竖屏同理）
 #   vdscreen orientation auto    取消锁定，方向跟随预设
-#   vdscreen zoom                查看当前界面缩放与清晰上限
-#   vdscreen zoom 125            界面缩放到 125%（也可写 1.25 / 125%）
-#   vdscreen zoom in|out|max|reset  放大 / 缩小 / 放到最大清晰档 / 还原 100%
 #   vdscreen main                 一键切换主屏（虚拟屏 ↔ 第一个其他显示器）
 #   vdscreen state               机器可读状态: "on <名字> <宽x高>" 或 "off"
 #   vdscreen config              查看配置文件
@@ -26,7 +22,6 @@
 # 只要 plist 存在，登录后会自动拉起；off 会移除 plist，确保关闭后不再自动启动。
 
 set -euo pipefail
-zmodload zsh/mathfunc
 
 CONFIG_DIR="$HOME/.config/vdscreen"
 CONFIG="$CONFIG_DIR/config"
@@ -39,7 +34,6 @@ LABEL=""
 CORE="$SELF_DIR/vdscreen-core"
 NAME="iPad mini 7"
 SIZE="1133x744"
-ZOOM=1
 ORIENTATION="auto"   # auto=跟随预设 | landscape=锁定横屏 | portrait=锁定竖屏
 
 [[ -f "$CONFIG" ]] && source "$CONFIG"
@@ -86,7 +80,7 @@ iPad Pro 13 (M4)             = 1376x1032
 # iPhone（竖屏）
 # 这里用手机的"像素尺寸"而不是"点尺寸"：402x874 点宽放不下普通 Mac 窗口，
 # 而且太小的虚拟屏 macOS 不给 HiDPI（会退回 1:1，又小又糊）。
-# 用像素尺寸当画布既够宽、又能拿到 HiDPI，切横屏用 rotate（1748x804 同样是 HiDPI）。
+# 用像素尺寸当画布既够宽、又能拿到 HiDPI，横竖方向用 vdscreen orientation 切换。
 # 嫌字太小可以让客户端缩放；想换更小的画布就自己改，程序会自动退回 1:1。
 iPhone 18 Pro                = 804x1748
 iPhone 18 Pro Max            = 880x1912
@@ -135,80 +129,18 @@ apply_orientation() {
   fi
 }
 
-# 用户原本请求的尺寸（normalize_size 放大之前）。rotate 以它为准，
-# 这样 402x874 → 874x402 → 402x874 能原路返回，而不是停在放大后的档位。
+# 用户原本请求的尺寸（normalize_size 放大之前）。orientation 锁定以它为准重摆，
+# 这样 402x874 被放大后仍能原路切回用户请求的方向。
 current_requested() {
   local value=""
   [[ -f "$PLIST" ]] && value="$(/usr/libexec/PlistBuddy -c "Print :RequestedSize" "$PLIST" 2>/dev/null)"
   print -r -- "${value:-$(current_size)}"
 }
 
-current_zoom() {
-  local value=""
-  [[ -f "$PLIST" ]] && value="$(/usr/libexec/PlistBuddy -c "Print :Zoom" "$PLIST" 2>/dev/null)"
-  print -r -- "${value:-1}"
-}
-
 current_name() {
   local value=""
   [[ -f "$PLIST" ]] && value="$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:2" "$PLIST" 2>/dev/null)"
   print -r -- "${value:-$NAME}"
-}
-
-# ── 界面缩放 ────────────────────────────────────────────────────────────
-# 缩放 = 把"请求尺寸"除以倍数得到逻辑画布：125% → 画布缩小到 1/1.25，UI 看起来大 1.25 倍。
-# 缩小画布有代价：macOS 只给足够大的虚拟屏 HiDPI（实测 660x800/800x600 有，
-# 650x1000/660x700/760x600/1000x480 没有），过小就退回 1:1（比例对、画面软）。
-# 下面的预测公式取了一点余量；最终是否清晰以核心的实测汇报为准。
-ZOOM_MIN=0.5
-ZOOM_MAX=2.0
-ZOOM_LEVELS=(0.5 0.67 0.75 0.9 1 1.1 1.25 1.5 1.75 2)
-
-# 请求尺寸下，还能保持 HiDPI 的最大缩放倍数（两位小数，向下取整）
-sharp_zoom_max() {
-  local w="${1%%x*}" h="${1##*x}"
-  [[ "$w" =~ ^[0-9]+$ && "$h" =~ ^[0-9]+$ ]] || { print -r -- "1.00"; return }
-  local a=$(( w / 670.0 ))
-  local b=$(( h / 600.0 ))
-  local c=$(( sqrt(w * h / 480000.0) ))
-  local m=$a
-  if (( b < m )); then m=$b; fi
-  if (( c < m )); then m=$c; fi
-  printf '%.2f' $(( floor(m * 100) / 100 ))
-}
-
-# 请求尺寸 + 倍数 → 逻辑画布尺寸（倍数为 1 时原样返回，保留奇数尺寸）
-apply_zoom() {
-  local w="${1%%x*}" h="${1##*x}" z="$2"
-  if (( z == 1 )); then print -r -- "${w}x${h}"; return; fi
-  print -r -- "$(( int(rint(w / (z + 0.0))) ))x$(( int(rint(h / (z + 0.0))) ))"
-}
-
-# "125" / "125%" / "1.25" → 1.25；非法返回 1
-parse_zoom() {
-  local raw="$1" v="${1%\%}"
-  [[ "$v" =~ ^[0-9]+(\.[0-9]+)?$ ]] || return 1
-  if [[ "$raw" == *% ]] || (( v > 10 )); then v=$(( v / 100.0 )); fi
-  print -r -- "$v"
-}
-
-# in/out 的下一档：沿预设档位走，但会先停在清晰上限，让人知道再往后就开始变软
-next_zoom() {
-  local dir="$1" cur="$2" smax="$3" lv best
-  if [[ "$dir" == in ]]; then
-    best=$ZOOM_MAX
-    for lv in $ZOOM_LEVELS; do
-      if (( lv > cur + 0.005 && lv < best )); then best=$lv; fi
-    done
-    if (( cur + 0.005 < smax && smax < best )); then best=$smax; fi
-  else
-    best=$ZOOM_MIN
-    for lv in $ZOOM_LEVELS; do
-      if (( lv < cur - 0.005 && lv > best )); then best=$lv; fi
-    done
-    if (( cur - 0.005 > smax && smax > best )); then best=$smax; fi
-  fi
-  print -r -- "$best"
 }
 
 # macOS 不接受高度 < 480 的显示器（会被替换成 800x600 之类的默认模式，
@@ -279,7 +211,6 @@ write_plist() {
     <string>$(xml_escape "$NAME")</string>
   </array>
   <key>RequestedSize</key><string>${REQUESTED:-$SIZE}</string>
-  <key>Zoom</key><string>${ZOOM:-1}</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><false/>
   <key>StandardOutPath</key><string>/tmp/vdscreen.log</string>
@@ -323,8 +254,7 @@ case "${1:-status}" in
     # 方向锁定：换预设/分辨率也保持所选方向（auto = 跟随预设原样）
     SIZE="$(apply_orientation "$SIZE")"
     REQUESTED="$SIZE"
-    ZOOM="${VDS_ZOOM:-1}"          # 只有 zoom / rotate 会带上；换预设、手动 on 都还原为 100%
-    SIZE="$(normalize_size "$(apply_zoom "$SIZE" "$ZOOM")")"
+    SIZE="$(normalize_size "$SIZE")"
     write_plist
     : > /tmp/vdscreen.log
     : > /tmp/vdscreen.err
@@ -342,9 +272,6 @@ case "${1:-status}" in
     cat /tmp/vdscreen.log 2>/dev/null || true
     sleep 0.5    # 给 system_profiler 一点时间看到新显示器
     report_dpi "$NAME"
-    if (( ZOOM != 1 )); then
-      say "  缩放: $(( int(rint(ZOOM * 100)) ))%（请求 $REQUESTED → 画布 $SIZE）"
-    fi
     show_status
     ;;
   off)
@@ -379,14 +306,18 @@ case "${1:-status}" in
     # 重写配置，保留所有已有键（LABEL/CORE/NAME/SIZE），追加/替换 ORIENTATION
     { grep -v '^ORIENTATION=' "$CONFIG" 2>/dev/null; echo "ORIENTATION=\"$ORIENTATION\""; } > "$CONFIG.new" && mv "$CONFIG.new" "$CONFIG"
     case "$ORIENTATION" in
-      landscape) say "已锁定横屏（正在运行的虚拟屏不自动切，rotate 或换预设后生效）" ;;
-      portrait)  say "已锁定竖屏（正在运行的虚拟屏不自动切，rotate 或换预设后生效）" ;;
+      landscape) say "已锁定横屏（换预设/分辨率后保持）" ;;
+      portrait)  say "已锁定竖屏（换预设/分辨率后保持）" ;;
       auto)      say "已取消锁定，方向跟随预设" ;;
     esac
     if [[ -n "$(current_pid)" && -f "$PLIST" ]]; then
-      # 立即按所选方向重摆当前屏（保持缩放与名字）
-      VDS_ZOOM="$(current_zoom)" "$0" on "$(apply_orientation "$(current_requested)")" "$(current_name)" >/dev/null
-      say "当前虚拟屏已按所选方向应用"
+      # 方向没变就别重建屏幕（重建一次 5–10 秒）；变了才立即重摆（保持名字）
+      new_size="$(apply_orientation "$(current_requested)")"
+      if [[ "$new_size" != "$(current_requested)" ]]; then
+        # 透传重摆后的核对结果（背板 vs 逻辑），菜单栏与集成测试都靠它判断 HiDPI
+        "$0" on "$new_size" "$(current_name)" 2>&1 | grep '^  实际' || true
+        say "当前虚拟屏已按所选方向应用"
+      fi
     fi
     ;;
   state)
@@ -396,45 +327,6 @@ case "${1:-status}" in
     else
       say "off"
     fi
-    ;;
-  rotate)
-    # 横竖切换：把"请求的尺寸"宽高对调（手机竖屏 ↔ 横屏）
-    [[ -n "$(current_pid)" && -f "$PLIST" ]] || die "虚拟屏未开启，先 vdscreen on"
-    size="$(current_requested)"
-    width="${size%%x*}"
-    height="${size##*x}"
-    [[ "$width" =~ ^[0-9]+$ && "$height" =~ ^[0-9]+$ ]] || die "当前尺寸无法解析: $size"
-    VDS_ZOOM="$(current_zoom)" "$0" on "${height}x${width}" "$(current_name)"
-    ;;
-  zoominfo)
-    # 机器可读: "<当前倍数> <清晰上限>"，菜单栏用它标注哪些档位会变软
-    say "$(current_zoom) $(sharp_zoom_max "$(current_requested)")"
-    ;;
-  zoom)
-    [[ -n "$(current_pid)" && -f "$PLIST" ]] || die "虚拟屏未开启，先 vdscreen on"
-    req="$(current_requested)"
-    cur="$(current_zoom)"
-    smax="$(sharp_zoom_max "$req")"
-    arg="${2:-}"
-    if [[ -z "$arg" ]]; then
-      say "当前缩放 $(( int(rint(cur * 100)) ))%（请求 $req → 画布 $(current_size)）"
-      say "清晰上限 $(( int(rint(smax * 100)) ))%，超过后 macOS 不再给 HiDPI，画面会略软"
-      exit 0
-    fi
-    case "$arg" in
-      in|out) target="$(next_zoom "$arg" "$cur" "$smax")" ;;
-      max)    target="$smax" ;;
-      reset)  target=1 ;;
-      *)      target="$(parse_zoom "$arg")" || die "用法: vdscreen zoom <125|1.25|125%|in|out|max|reset>" ;;
-    esac
-    if (( target < ZOOM_MIN )); then target=$ZOOM_MIN; fi
-    if (( target > ZOOM_MAX )); then target=$ZOOM_MAX; fi
-    target="$(printf '%.2f' $target)"
-    if (( target == cur )); then
-      say "缩放已是 $(( int(rint(cur * 100)) ))%，无需改动"
-      exit 0
-    fi
-    VDS_ZOOM="$target" "$0" on "$req" "$(current_name)"
     ;;
   presets)
     ensure_presets

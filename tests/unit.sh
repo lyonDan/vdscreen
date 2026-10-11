@@ -41,56 +41,22 @@ ORIENTATION="landscape"; eq "方形尺寸不动"   800x800  "$(apply_orientation
 ORIENTATION="portrait";  eq "无法解析原样"   abc      "$(apply_orientation abc)"
 ORIENTATION="auto"
 
-# ── apply_zoom ──
-eq "倍数 1 原样"         804x1748  "$(apply_zoom 804x1748 1)"
-eq "倍数 1 保留奇数"     1133x745  "$(apply_zoom 1133x745 1)"
-eq "125% 缩小画布"       643x1398  "$(apply_zoom 804x1748 1.25)"
-eq "50% 画布翻倍"        1608x3496 "$(apply_zoom 804x1748 0.5)"
-eq "横屏缩放"            1398x643  "$(apply_zoom 1748x804 1.25)"
-
-# ── sharp_zoom_max：HiDPI 清晰上限预测（经验模型，改系数时要同步 README）──
-eq "手机竖屏上限"        1.20  "$(sharp_zoom_max 804x1748)"
-eq "手机横屏上限"        1.34  "$(sharp_zoom_max 1748x804)"
-eq "iPad mini 横屏上限"  1.24  "$(sharp_zoom_max 1133x744)"
-eq "iPad mini 竖屏上限"  1.11  "$(sharp_zoom_max 744x1133)"
-eq "1080p 上限"          1.80  "$(sharp_zoom_max 1920x1080)"
-eq "非法尺寸回落 1"      1.00  "$(sharp_zoom_max abc)"
-
-# ── parse_zoom ──
-eq "整数百分数"          1.25  "$(parse_zoom 125)"
-eq "带 % 号"             1.25  "$(parse_zoom 125%)"
-eq "小数倍数"            1.25  "$(parse_zoom 1.25)"
-eq "50%"                 0.5   "$(parse_zoom 50%)"
-parse_zoom abc >/dev/null 2>&1;   eq "字母非法"   1 $?
-parse_zoom "1;rm" >/dev/null 2>&1; eq "注入非法"  1 $?
-parse_zoom "" >/dev/null 2>&1;    eq "空串非法"   1 $?
-
-# ── next_zoom：沿档位走，且先停在清晰上限 ──
-eq "放大到下一档"            1.1   "$(next_zoom in 1 1.2)"
-eq "放大先停在清晰上限"      1.2   "$(next_zoom in 1.1 1.2)"
-eq "越过上限后继续下一档"    1.25  "$(next_zoom in 1.2 1.2)"
-eq "缩小到上一档"            0.9   "$(next_zoom out 1 1.2)"
-eq "从略软区缩小先回上限"    1.2   "$(next_zoom out 1.25 1.2)"
-eq "缩小有下限"              0.5   "$(next_zoom out 0.5 1.2)"
-eq "放大有上限"              2.0   "$(next_zoom in 2.0 1.2)"
+# ── apply_zoom 已随界面缩放功能一并移除（v1.3.0）──
 
 # ── xml_escape ──
 eq "XML 转义" 'R&amp;D &lt;x&gt;' "$(xml_escape 'R&D <x>')"
 
-# ── plist 往返：特殊字符名字、请求尺寸、缩放 ──
+# ── plist 往返：特殊字符名字、请求尺寸 ──
 PLIST="$TMP/t.plist"
-SIZE=670x1457; NAME='R&D <测试> "x"'; REQUESTED=804x1748; ZOOM=1.2
+SIZE=670x1457; NAME='R&D <测试> "x"'; REQUESTED=804x1748
 write_plist
 plutil -lint "$PLIST" >/dev/null 2>&1; eq "plist 是合法 XML" 0 $?
 eq "读回名字（含特殊字符）" "$NAME"   "$(current_name)"
 eq "读回画布尺寸"           670x1457  "$(current_size)"
 eq "读回请求尺寸"           804x1748  "$(current_requested)"
-eq "读回缩放"               1.2       "$(current_zoom)"
-unset REQUESTED; ZOOM=1; write_plist
+eq "plist 不再写 Zoom 键"   0 "$(/usr/libexec/PlistBuddy -c 'Print :Zoom' "$PLIST" 2>/dev/null | grep -c .)"
+unset REQUESTED; write_plist
 eq "无请求尺寸时回落到画布" 670x1457  "$(current_requested)"
-eq "默认缩放 1"             1         "$(current_zoom)"
-PLIST="$TMP/none.plist"
-eq "没有 plist 时缩放 1"    1         "$(current_zoom)"
 
 # ── 预设：默认文件格式 ──
 ensure_presets
@@ -130,8 +96,9 @@ eq "set 不会把沿用的旧标签固化进配置" 0 "$(grep -c '^LABEL=' "$leg
 
 # ── 不碰显示器的命令（子进程跑，HOME 已隔离 → 没有 plist → 视为未开启）──
 out="$(zsh "$ROOT/vdscreen" state 2>&1)";           eq "state（未开启）" off "$out"
-zsh "$ROOT/vdscreen" zoom >/dev/null 2>&1;          eq "未开启时 zoom 报错" 1 $?
-zsh "$ROOT/vdscreen" rotate >/dev/null 2>&1;        eq "未开启时 rotate 报错" 1 $?
+zsh "$ROOT/vdscreen" zoom >/dev/null 2>&1;          eq "已移除的 zoom 命令报错" 1 $?
+zsh "$ROOT/vdscreen" rotate >/dev/null 2>&1;        eq "已移除的 rotate 命令报错" 1 $?
+zsh "$ROOT/vdscreen" orientation 竖屏 >/dev/null 2>&1; eq "未开启时也能设置方向" 0 $?
 zsh "$ROOT/vdscreen" main >/dev/null 2>&1;           eq "未开启时 main 报错" 1 $?
 zsh "$ROOT/vdscreen" preset 不存在 >/dev/null 2>&1; eq "未知预设报错" 1 $?
 zsh "$ROOT/vdscreen" bogus >/dev/null 2>&1;         eq "未知命令报错" 1 $?

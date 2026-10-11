@@ -5,8 +5,8 @@
 // 实际动作全部交给 vdscreen CLI 执行，这里只是前端。
 //
 // 入口不止菜单栏图标 —— 竖屏时菜单栏会被挤爆，图标可能不可见，所以另有：
-//   · 全局快捷键（⌥⌘0 开关 / ⌥⌘R 横竖切换 / ⌥⌘1…9 选预设 / ⌥⌘= ⌥⌘- 界面缩放 / ⌥⌘M 切换主屏 / ⌃⌥⌘V 弹出菜单）
-//   · URL scheme（vdscreen://rotate 等，见 handle(url:)）
+//   · 全局快捷键（⌥⌘0 开关 / ⌥⌘R 横竖切换 / ⌥⌘1…9 选预设 / ⌥⌘M 切换主屏 / ⌃⌥⌘V 弹出菜单）
+//   · URL scheme（vdscreen://orientation 等，见 handle(url:)）
 //   · 可选的 Dock 图标（右键直接出菜单）
 //   · 再次打开 App（Spotlight / Launchpad）时在鼠标处弹出菜单
 //
@@ -187,9 +187,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var currentName = ""
     private var currentSize = ""
     private var orientation = "auto"   // auto | landscape | portrait，来自 CLI 配置
-    private var zoom = 1.0          // 当前界面缩放（1.25 = 125%）
-    private var sharpMax = 1.0      // 超过它 macOS 不再给 HiDPI，画面会略软
-    private static let zoomLevels: [Double] = [0.5, 0.67, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0]
 
     private static let showDockKey = "showDockIcon"
     private var showDock: Bool {
@@ -237,19 +234,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             isOn = true
             currentSize = parts.last.map(String.init) ?? ""
             currentName = parts.dropFirst().dropLast().joined(separator: " ")
-            // 先去换行再切分：Double("1.11\n") 是 nil，否则第二个数永远解析失败，
-            // zoom/sharpMax 会停在默认 1.0，菜单恒显 100%（v1.2.6 及之前的老 bug）
-            let zoomInfo = CLI.run(["zoominfo"]).trimmingCharacters(in: .whitespacesAndNewlines)
-                .split(separator: " ").compactMap { Double($0) }
-            if zoomInfo.count == 2 { zoom = zoomInfo[0]; sharpMax = zoomInfo[1] }
-            // 方向锁定状态：只取 = 后到第一个非 [a-z] 字符为止（后面是中文说明）
-            let dirLine = CLI.run(["orientation"]).trimmingCharacters(in: .whitespacesAndNewlines)
-            if let eq = dirLine.firstIndex(of: "=") {
-                let rest = dirLine[dirLine.index(after: eq)...]
-                orientation = rest.prefix { $0.isASCII && $0.isLetter } .description
-            }
         } else {
             isOn = false
+        }
+        // 方向锁定状态：只取 = 后到第一个非 [a-z] 字符为止（后面是中文说明）；
+        // 未开启时也读，菜单里的勾选才不会停在旧值
+        let dirLine = CLI.run(["orientation"]).trimmingCharacters(in: .whitespacesAndNewlines)
+        if let eq = dirLine.firstIndex(of: "=") {
+            let rest = dirLine[dirLine.index(after: eq)...]
+            orientation = rest.prefix { $0.isASCII && $0.isLetter } .description
         }
         statusItem?.button?.toolTip = isOn
             ? "vdscreen：\(currentName) \(currentSize)"
@@ -274,9 +267,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func registerHotKeys() {
         let mods = optionKey | cmdKey
         hotKeys.register(keyCode: kVK_ANSI_0, modifiers: mods, label: "⌥⌘0") { [weak self] in self?.toggle() }
-        hotKeys.register(keyCode: kVK_ANSI_R, modifiers: mods, label: "⌥⌘R") { [weak self] in self?.rotate() }
-        hotKeys.register(keyCode: kVK_ANSI_Equal, modifiers: mods, label: "⌥⌘=") { [weak self] in self?.zoomStep("in") }
-        hotKeys.register(keyCode: kVK_ANSI_Minus, modifiers: mods, label: "⌥⌘-") { [weak self] in self?.zoomStep("out") }
+        hotKeys.register(keyCode: kVK_ANSI_R, modifiers: mods, label: "⌥⌘R") { [weak self] in self?.toggleOrientation() }
         hotKeys.register(keyCode: kVK_ANSI_M, modifiers: mods, label: "⌥⌘M") { [weak self] in
             self?.switchMain()
         }
@@ -293,7 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// vdscreen://on | off | toggle | rotate | preset/<名字> | size/<宽x高>
+    /// vdscreen://on | off | toggle | orientation/<横屏|竖屏|auto> | preset/<名字> | size/<宽x高>
     func application(_ application: NSApplication, open urls: [URL]) {
         urls.forEach(handle(url:))
     }
@@ -306,19 +297,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case "on":      turnOn()
         case "off":     turnOff()
         case "toggle":  toggle()
-        case "rotate":  rotate()
+        case "rotate":  toggleOrientation()   // 旧写法保留：等效于横竖切换
         case "menu":    popUpMenuAtMouse()
         case "main":    switchMain()
         case "orientation":
             // landscape | portrait | auto（沿用 CLI 的取值，非法值让 CLI 报错）
             if !argument.isEmpty { applyOrientationSetting(argument) }
-        case "zoom":
-            // in | out | max | reset | 125 | 125% | 1.25（没有 shell，参数不会被注入；这里仍只放行合法形式）
-            if argument.range(of: #"^(in|out|max|reset|[0-9]+(\.[0-9]+)?%?)$"#, options: .regularExpression) != nil {
-                zoomTo(argument)
-            } else {
-                hud.show("缩放参数不对：\(argument)")
-            }
         case "preset":
             if let preset = presets.first(where: { $0.name == argument }) {
                 apply(preset)
@@ -375,37 +359,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         if isOn {
             add(to: menu, title: "关闭虚拟屏", action: #selector(turnOffAction), key: "0")
-            add(to: menu, title: "横竖切换（一次性）", action: #selector(rotateAction), key: "r")
             add(to: menu, title: "切换为主屏（虚拟屏 ↔ 其他显示器，菜单栏跟随）",
                 action: #selector(switchMainAction), key: "m")
-            let dirItem = NSMenuItem(title: "方向（换预设后保持）", action: nil, keyEquivalent: "")
-            let dirMenu = NSMenu()
-            for (label, value) in [("跟随预设", "auto"), ("锁定横屏", "landscape"), ("锁定竖屏", "portrait")] {
-                let item = add(to: dirMenu, title: label, action: #selector(applyOrientation(_:)))
-                item.representedObject = value
-                item.state = (value == orientation) ? .on : .off
-            }
-            dirItem.submenu = dirMenu
-            menu.addItem(dirItem)
-
-            let zoomItem = NSMenuItem(title: "界面缩放（\(Self.percent(zoom))）", action: nil, keyEquivalent: "")
-            let zoomMenu = NSMenu()
-            for level in Self.zoomLevels {
-                let soft = level > sharpMax + 0.005
-                let item = add(to: zoomMenu, title: Self.percent(level) + (soft ? "　略软" : ""),
-                               action: #selector(applyZoomLevel(_:)))
-                item.representedObject = level
-                item.state = abs(level - zoom) < 0.005 ? .on : .off
-            }
-            zoomMenu.addItem(.separator())
-            add(to: zoomMenu, title: "最大清晰缩放（\(Self.percent(sharpMax))）", action: #selector(zoomMaxAction))
-            add(to: zoomMenu, title: "放大", action: #selector(zoomInAction), key: "=")
-            add(to: zoomMenu, title: "缩小", action: #selector(zoomOutAction), key: "-")
-            zoomItem.submenu = zoomMenu
-            menu.addItem(zoomItem)
         } else {
             add(to: menu, title: "开启虚拟屏（默认配置）", action: #selector(turnOnAction), key: "0")
         }
+
+        // 横竖切换：勾选项，换预设/分辨率后保持；⌥⌘R 在锁定横屏/竖屏之间快速切换
+        let dirItem = NSMenuItem(title: "横竖切换（换预设后保持）", action: nil, keyEquivalent: "r")
+        dirItem.keyEquivalentModifierMask = [.option, .command]
+        let dirMenu = NSMenu()
+        for (label, value) in [("跟随预设", "auto"), ("锁定横屏", "landscape"), ("锁定竖屏", "portrait")] {
+            let item = add(to: dirMenu, title: label, action: #selector(applyOrientation(_:)))
+            item.representedObject = value
+            item.state = (value == orientation) ? .on : .off
+        }
+        dirItem.submenu = dirMenu
+        menu.addItem(dirItem)
 
         menu.addItem(.separator())
 
@@ -453,7 +423,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func turnOffAction() { turnOff() }
     @objc private func turnOnAction() { turnOn() }
-    @objc private func rotateAction() { rotate() }
     @objc private func switchMainAction() { switchMain() }
 
     /// 一键主屏：让虚拟屏成为主屏（远程时就能看到/操作已打开的窗口）；
@@ -484,29 +453,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         isOn ? turnOff() : turnOn()
     }
 
-    private func rotate() {
+    /// ⌥⌘R：在锁定横屏 / 锁定竖屏之间快速切换（auto 时按当前尺寸方向选相反的）
+    private func toggleOrientation() {
         refreshState()
-        guard isOn else { hud.show("虚拟屏未开启"); return }
-        perform(["rotate"], title: "正在横竖切换…")
-    }
-
-    static func percent(_ value: Double) -> String { "\(Int((value * 100).rounded()))%" }
-
-    private func zoomTo(_ argument: String) {
-        refreshState()
-        guard isOn else { hud.show("虚拟屏未开启"); return }
-        perform(["zoom", argument], title: "正在调整界面缩放…")
-    }
-
-    private func zoomStep(_ direction: String) { zoomTo(direction) }
-
-    @objc private func zoomInAction() { zoomStep("in") }
-    @objc private func zoomOutAction() { zoomStep("out") }
-    @objc private func zoomMaxAction() { zoomTo("max") }
-
-    @objc private func applyZoomLevel(_ sender: NSMenuItem) {
-        guard let level = sender.representedObject as? Double else { return }
-        zoomTo(String(level))
+        let target: String
+        if orientation == "landscape" { target = "portrait" }
+        else if orientation == "portrait" { target = "landscape" }
+        else {
+            let parts = currentSize.split(separator: "x")
+            target = (parts.count == 2 && (Int(parts[0]) ?? 0) > (Int(parts[1]) ?? 0)) ? "portrait" : "landscape"
+        }
+        applyOrientationSetting(target)
     }
 
     private func apply(_ preset: Preset) {
@@ -633,6 +590,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// 根据 CLI 回显生成结果提示（"HiDPI"/"非 HiDPI" 来自 CLI 对 system_profiler 的核对）
     private func summary(of output: String, command: String) -> String {
         if command == "off" { return "虚拟屏已关闭" }
+        if command == "orientation" {
+            switch orientation {
+            case "landscape": return "✓ 已锁定横屏"
+            case "portrait":  return "✓ 已锁定竖屏"
+            default:          return "✓ 方向跟随预设"
+            }
+        }
         if command == "main" {
             if output.contains("已切换") { return "✓ 已切换主屏（菜单栏已跟随）" }
             if output.contains("没有其他显示器") { return output }
@@ -640,8 +604,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard isOn else { return "✗ 虚拟屏没有起来，详见 /tmp/vdscreen-bar.log" }
         let quality = output.contains("非 HiDPI") ? "非 HiDPI（画面略软）"
             : output.contains("HiDPI") ? "HiDPI" : ""
-        let zoomText = abs(zoom - 1) > 0.005 ? "缩放 \(Self.percent(zoom))" : ""
-        let detail = [currentSize, orientationLabel(currentSize), zoomText, quality].filter { !$0.isEmpty }
+        let detail = [currentSize, orientationLabel(currentSize), quality].filter { !$0.isEmpty }
         return "✓ \(currentName)\n" + detail.joined(separator: " · ")
     }
 }
