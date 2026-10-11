@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 语法检查
+        run: zsh -n vdscreen && zsh -n build.sh
+      - name: 编译核心与菜单栏 App
+        run: ./build.sh
+      - name: 检查产物
+        run: |
+          test -x vdscreen-core
+          test -x VDScreenBar.app/Contents/MacOS/vdscreen-bar
+          codesign --verify --deep --strict VDScreenBar.app
+          plutil -lint VDScreenBar.app/Contents/Info.plist
+          ./vdscreen help | head -5

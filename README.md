@@ -18,6 +18,26 @@ $ vdscreen on
   也不能上架 App Store。请自行评估风险，按 MIT 协议「按原样」提供，不附带任何担保。
 - 菜单栏 App 没有签名，请自己编译后使用（`build.sh` 产物在本机运行不会触发 Gatekeeper 拦截）。
 
+## 安装
+
+**推荐：从源码编译**（`brew` 或手动，二选一）。本机编译的 App 不会被 Gatekeeper 拦截。
+
+```sh
+brew install lyonDan/tap/vdscreen     # tap 建好之后可用，见下方「发布」；formula 从源码编译
+cp -R "$(brew --prefix vdscreen)/VDScreenBar.app" ~/Applications/
+```
+
+或者按下面「快速开始」自己 `./build.sh`。
+
+**下载预编译包**：在 [Releases](https://github.com/lyonDan/vdscreen/releases) 下载 `VDScreenBar-<版本>-arm64.zip`
+（仅 Apple Silicon）。包**没有 Developer ID 签名、也没有公证**，浏览器下载后会被隔离，首次打开需要：
+
+```sh
+xattr -dr com.apple.quarantine VDScreenBar.app    # 或：右键 → 打开
+```
+
+Intel Mac 请从源码编译。
+
 ## 快速开始
 
 ```sh
@@ -185,6 +205,18 @@ SIZE="1133x744"
 `vdscreen set ...` 会改写它，也可以手工编辑后执行 `vdscreen restart`。
 `SIZE` 是**逻辑尺寸**，程序会另外申请 2× 背板（1133×744 → 背板 2266×1488）。
 
+## 发布（维护者）
+
+推一个 `vX.Y.Z` tag，GitHub Actions 会自动编译、打包 `VDScreenBar-X.Y.Z-arm64.zip` 与 `SHA256SUMS.txt`，
+并创建 Release；同时附带填好 url / sha256 的 `vdscreen.rb`（Homebrew formula，源码编译）。
+把它放进 tap 仓库的 `Formula/` 目录即可 `brew install`。
+
+```sh
+git tag v1.2.0 && git push origin v1.2.0
+```
+
+`build.sh` 支持 `VERSION=…` 与 `SIGN_IDENTITY="Developer ID Application: …"` 两个环境变量。
+
 ## 卸载
 
 ```sh
@@ -239,6 +271,8 @@ CGVirtualDisplayShim.h  私有 API 的最小声明
 vdscreen                管理 CLI（on / off / rotate / preset / status / config / set / install / uninstall）
 vdscreen-bar.swift      菜单栏应用源码（菜单、全局快捷键、悬浮提示、URL scheme）
 build.sh                编译核心 + 打包 VDScreenBar.app
+.github/workflows/    CI 与自动发布
+packaging/homebrew/     Homebrew formula 模板
 make-icon.swift         生成 AppIcon.icns 的脚本（仅改图标设计时才需要跑）
 AppIcon.icns            菜单栏 App 的图标
 ```

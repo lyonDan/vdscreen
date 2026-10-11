@@ -3,6 +3,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# VERSION 写进 Info.plist（发布流程会传入 tag 版本）；SIGN_IDENTITY 默认 ad-hoc，
+# 有开发者证书时可用 SIGN_IDENTITY="Developer ID Application: ..." 覆盖
+VERSION="${VERSION:-1.1.0}"
+SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+
 clang -fobjc-arc -framework Foundation -framework AppKit -framework CoreGraphics \
       -o vdscreen-core vdscreen.m
 echo "核心:     $(pwd)/vdscreen-core"
@@ -28,7 +33,7 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleExecutable</key><string>vdscreen-bar</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.1</string>
+  <key>CFBundleShortVersionString</key><string>__VERSION__</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
   <key>CFBundleURLTypes</key>
@@ -42,10 +47,11 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
 </dict>
 </plist>
 EOF
+sed -i '' "s/__VERSION__/$VERSION/" "$APP/Contents/Info.plist"
 
 # 清掉扩展属性后做 ad-hoc 签名，把 Info.plist 与图标资源封进 bundle；
 # 否则系统可能不认 CFBundleIconFile，Finder/Dock 里图标一直是空白
 xattr -cr "$APP"
-codesign --force --deep -s - "$APP"
+codesign --force --deep -s "$SIGN_IDENTITY" "$APP"
 
 echo "菜单栏App: $(pwd)/$APP"

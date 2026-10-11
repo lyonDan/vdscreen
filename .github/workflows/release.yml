@@ -1,0 +1,50 @@
+name: Release
+
+# 推送形如 v1.2.0 的 tag 时自动构建并发布；也可手动运行（只产出 artifact，不发布）
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 版本号
+        id: ver
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then v="${GITHUB_REF_NAME#v}"; else v="0.0.0-dev"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: 编译
+        run: VERSION="${{ steps.ver.outputs.version }}" ./build.sh
+
+      - name: 打包
+        run: |
+          v="${{ steps.ver.outputs.version }}"
+          mkdir dist
+          ditto -c -k --keepParent VDScreenBar.app "dist/VDScreenBar-$v-arm64.zip"
+          (cd dist && shasum -a 256 *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt)
+
+      - name: 生成 Homebrew formula（对应本次 tag 的源码包）
+        if: github.ref_type == 'tag'
+        run: |
+          url="https://github.com/${{ github.repository }}/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz"
+          sha="$(curl -fsSL "$url" | shasum -a 256 | cut -d' ' -f1)"
+          sed -e "s|__URL__|$url|" -e "s|__SHA256__|$sha|" packaging/homebrew/vdscreen.rb > dist/vdscreen.rb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+
+      - name: 发布 GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes
