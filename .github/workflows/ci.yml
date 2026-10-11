@@ -12,6 +12,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: 语法检查
         run: zsh -n vdscreen && zsh -n build.sh
+      - name: 单元测试
+        run: tests/unit.sh
       - name: 编译核心与菜单栏 App
         run: ./build.sh
       - name: 检查产物

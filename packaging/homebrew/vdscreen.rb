@@ -11,9 +11,14 @@ class Vdscreen < Formula
 
   def install
     # 本机编译，不涉及下载二进制，也就不会被 Gatekeeper 隔离
+    ENV["VERSION"] = version.to_s
     system "./build.sh"
     libexec.install "vdscreen", "vdscreen-core"
-    bin.write_exec_script libexec/"vdscreen"   # 保持 vdscreen 与 vdscreen-core 同目录
+    # 用 opt 路径而非带版本号的 Cellar 路径：LaunchAgent 会记下核心路径，升级后不能失效
+    (bin/"vdscreen").write <<~SH
+      #!/bin/sh
+      exec "#{opt_libexec}/vdscreen" "$@"
+    SH
     prefix.install "VDScreenBar.app"
   end
 

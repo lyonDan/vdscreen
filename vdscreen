@@ -221,6 +221,13 @@ wait_ready() {
   return 1
 }
 
+# plist 是 XML：名字里有 & < > 时必须转义，否则 launchd 读不了
+xml_escape() {
+  local v="$1"
+  v="${v//&/&amp;}"; v="${v//</&lt;}"; v="${v//>/&gt;}"
+  print -r -- "$v"
+}
+
 write_plist() {
   [[ -x "$CORE" ]] || die "找不到可执行文件 $CORE（先跑 ./build.sh，或 vdscreen install）"
   mkdir -p "$(dirname "$PLIST")"
@@ -229,12 +236,12 @@ write_plist() {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>$LABEL</string>
+  <key>Label</key><string>$(xml_escape "$LABEL")</string>
   <key>ProgramArguments</key>
   <array>
-    <string>$CORE</string>
+    <string>$(xml_escape "$CORE")</string>
     <string>$SIZE</string>
-    <string>$NAME</string>
+    <string>$(xml_escape "$NAME")</string>
   </array>
   <key>RequestedSize</key><string>${REQUESTED:-$SIZE}</string>
   <key>Zoom</key><string>${ZOOM:-1}</string>
@@ -270,6 +277,9 @@ show_status() {
     say "显示器:    未出现"
   fi
 }
+
+# 测试用：VDS_LIB=1 source ./vdscreen 只加载函数，不执行任何命令
+[[ -n "${VDS_LIB:-}" ]] && return 0
 
 case "${1:-status}" in
   on)
@@ -320,6 +330,7 @@ case "${1:-status}" in
     ;;
   rotate)
     # 横竖切换：把"请求的尺寸"宽高对调（手机竖屏 ↔ 横屏）
+    [[ -n "$(current_pid)" && -f "$PLIST" ]] || die "虚拟屏未开启，先 vdscreen on"
     size="$(current_requested)"
     width="${size%%x*}"
     height="${size##*x}"
@@ -369,6 +380,7 @@ case "${1:-status}" in
   config)
     mkdir -p "$CONFIG_DIR"
     [[ -f "$CONFIG" ]] || cat > "$CONFIG" <<EOF
+LABEL="$LABEL"
 CORE="$SELF_DIR/vdscreen-core"
 NAME="iPad mini 7"
 SIZE="1133x744"
@@ -381,6 +393,7 @@ EOF
     [[ -n "$key" && -n "$val" ]] || die "用法: vdscreen set <size|name|core> <值>"
     mkdir -p "$CONFIG_DIR"
     [[ -f "$CONFIG" ]] || cat > "$CONFIG" <<EOF
+LABEL="$LABEL"
 CORE="$CORE"
 NAME="$NAME"
 SIZE="$SIZE"
@@ -391,15 +404,15 @@ EOF
       core) CORE="$val" ;;
       *) die "只支持 size / name / core" ;;
     esac
-    # 重写配置（保持三行结构）
-    { echo "CORE=\"$CORE\""; echo "NAME=\"$NAME\""; echo "SIZE=\"$SIZE\""; } > "$CONFIG"
+    # 重写配置（保留 LABEL，否则自定义标签会被悄悄丢掉）
+    { echo "LABEL=\"$LABEL\""; echo "CORE=\"$CORE\""; echo "NAME=\"$NAME\""; echo "SIZE=\"$SIZE\""; } > "$CONFIG"
     say "已更新 $key = $val"
     loaded && say "（正在运行，执行 vdscreen restart 生效）"
     ;;
   install)
     [[ -x "$CORE" ]] || { say "先编译核心…"; "$SELF_DIR/build.sh"; }
     mkdir -p "$CONFIG_DIR"
-    { echo "CORE=\"$SELF_DIR/vdscreen-core\""; echo "NAME=\"$NAME\""; echo "SIZE=\"$SIZE\""; } > "$CONFIG"
+    { echo "LABEL=\"$LABEL\""; echo "CORE=\"$SELF_DIR/vdscreen-core\""; echo "NAME=\"$NAME\""; echo "SIZE=\"$SIZE\""; } > "$CONFIG"
     mkdir -p "$HOME/bin"
     cp "$SELF_DIR/vdscreen" "$HOME/bin/vdscreen"
     chmod +x "$HOME/bin/vdscreen"
