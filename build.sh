@@ -14,7 +14,7 @@ cp vdscreen-core "$APP/Contents/Resources/vdscreen-core"
 chmod +x "$APP/Contents/Resources/vdscreen" "$APP/Contents/Resources/vdscreen-core"
 
 swiftc -O -o "$APP/Contents/MacOS/vdscreen-bar" vdscreen-bar.swift \
-       -framework SwiftUI -framework AppKit
+       -framework AppKit -framework Carbon -framework ServiceManagement
 
 cat > "$APP/Contents/Info.plist" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -26,9 +26,16 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
   <key>CFBundleIdentifier</key><string>com.local.vdscreen.bar</string>
   <key>CFBundleExecutable</key><string>vdscreen-bar</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundleShortVersionString</key><string>1.1</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key><string>com.local.vdscreen.bar</string>
+      <key>CFBundleURLSchemes</key><array><string>vdscreen</string></array>
+    </dict>
+  </array>
   <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>

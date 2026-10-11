@@ -7,7 +7,10 @@
 #   vdscreen status              查看状态（不带参数时的默认动作）
 #   vdscreen presets             列出预设分辨率
 #   vdscreen preset <名字>       按预设启动（如: vdscreen preset "iPad mini 7"）
-#   vdscreen rotate              横竖切换（交换当前宽高）
+#   vdscreen rotate              横竖切换（交换当前宽高，缩放保持）
+#   vdscreen zoom                查看当前界面缩放与清晰上限
+#   vdscreen zoom 125            界面缩放到 125%（也可写 1.25 / 125%）
+#   vdscreen zoom in|out|max|reset  放大 / 缩小 / 放到最大清晰档 / 还原 100%
 #   vdscreen state               机器可读状态: "on <名字> <宽x高>" 或 "off"
 #   vdscreen config              查看配置文件
 #   vdscreen set size 1133x744   改默认尺寸
@@ -19,6 +22,7 @@
 # 只要 plist 存在，登录后会自动拉起；off 会移除 plist，确保关闭后不再自动启动。
 
 set -euo pipefail
+zmodload zsh/mathfunc
 
 CONFIG_DIR="$HOME/.config/vdscreen"
 CONFIG="$CONFIG_DIR/config"
@@ -31,6 +35,7 @@ LABEL="com.local.vdscreen.ipadmini7"
 CORE="$SELF_DIR/vdscreen-core"
 NAME="iPad mini 7"
 SIZE="1133x744"
+ZOOM=1
 
 [[ -f "$CONFIG" ]] && source "$CONFIG"
 
@@ -60,17 +65,16 @@ iPad Air 13 / iPad Pro 12.9  = 1366x1024
 iPad Pro 11 (M4)             = 1210x834
 iPad Pro 13 (M4)             = 1376x1032
 
-# iPhone（竖屏，正好铺满手机）
-# 注意：macOS 只对"足够大"的虚拟屏提供 HiDPI（实测逻辑宽度 ≳900）。
-# 手机尺寸拿不到 HiDPI，程序会自动退回 1:1 —— UI 比例正确，画面略软。
-# 想要更锐利可换用更宽的等价尺寸（代价是 UI 显得更小），例如：
-#   iPhone 18 Pro（锐）      = 603x1311
-#   iPhone 18 Pro（很锐）    = 900x1956
-iPhone 18 Pro                = 402x874
-iPhone 18 Pro Max            = 440x956
-iPhone 17 / 18 (6.3")        = 402x874
-iPhone Air                   = 420x912
-iPhone SE (3rd)              = 375x667
+# iPhone（竖屏）
+# 这里用手机的"像素尺寸"而不是"点尺寸"：402x874 点宽放不下普通 Mac 窗口，
+# 而且太小的虚拟屏 macOS 不给 HiDPI（会退回 1:1，又小又糊）。
+# 用像素尺寸当画布既够宽、又能拿到 HiDPI，切横屏用 rotate（1748x804 同样是 HiDPI）。
+# 嫌字太小可以让客户端缩放；想换更小的画布就自己改，程序会自动退回 1:1。
+iPhone 18 Pro                = 804x1748
+iPhone 18 Pro Max            = 880x1912
+iPhone 17 / 18 (6.3")        = 804x1748
+iPhone Air                   = 840x1824
+iPhone SE (3rd)              = 750x1334
 
 # 通用分辨率
 1080p                        = 960x540
@@ -97,10 +101,80 @@ current_size() {
   print -r -- "${value:-$SIZE}"
 }
 
+# 用户原本请求的尺寸（normalize_size 放大之前）。rotate 以它为准，
+# 这样 402x874 → 874x402 → 402x874 能原路返回，而不是停在放大后的档位。
+current_requested() {
+  local value=""
+  [[ -f "$PLIST" ]] && value="$(/usr/libexec/PlistBuddy -c "Print :RequestedSize" "$PLIST" 2>/dev/null)"
+  print -r -- "${value:-$(current_size)}"
+}
+
+current_zoom() {
+  local value=""
+  [[ -f "$PLIST" ]] && value="$(/usr/libexec/PlistBuddy -c "Print :Zoom" "$PLIST" 2>/dev/null)"
+  print -r -- "${value:-1}"
+}
+
 current_name() {
   local value=""
   [[ -f "$PLIST" ]] && value="$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:2" "$PLIST" 2>/dev/null)"
   print -r -- "${value:-$NAME}"
+}
+
+# ── 界面缩放 ────────────────────────────────────────────────────────────
+# 缩放 = 把"请求尺寸"除以倍数得到逻辑画布：125% → 画布缩小到 1/1.25，UI 看起来大 1.25 倍。
+# 缩小画布有代价：macOS 只给足够大的虚拟屏 HiDPI（实测 660x800/800x600 有，
+# 650x1000/660x700/760x600/1000x480 没有），过小就退回 1:1（比例对、画面软）。
+# 下面的预测公式取了一点余量；最终是否清晰以核心的实测汇报为准。
+ZOOM_MIN=0.5
+ZOOM_MAX=2.0
+ZOOM_LEVELS=(0.5 0.67 0.75 0.9 1 1.1 1.25 1.5 1.75 2)
+
+# 请求尺寸下，还能保持 HiDPI 的最大缩放倍数（两位小数，向下取整）
+sharp_zoom_max() {
+  local w="${1%%x*}" h="${1##*x}"
+  [[ "$w" =~ ^[0-9]+$ && "$h" =~ ^[0-9]+$ ]] || { print -r -- "1.00"; return }
+  local a=$(( w / 670.0 ))
+  local b=$(( h / 600.0 ))
+  local c=$(( sqrt(w * h / 480000.0) ))
+  local m=$a
+  if (( b < m )); then m=$b; fi
+  if (( c < m )); then m=$c; fi
+  printf '%.2f' $(( floor(m * 100) / 100 ))
+}
+
+# 请求尺寸 + 倍数 → 逻辑画布尺寸（倍数为 1 时原样返回，保留奇数尺寸）
+apply_zoom() {
+  local w="${1%%x*}" h="${1##*x}" z="$2"
+  if (( z == 1 )); then print -r -- "${w}x${h}"; return; fi
+  print -r -- "$(( int(rint(w / (z + 0.0))) ))x$(( int(rint(h / (z + 0.0))) ))"
+}
+
+# "125" / "125%" / "1.25" → 1.25；非法返回 1
+parse_zoom() {
+  local raw="$1" v="${1%\%}"
+  [[ "$v" =~ ^[0-9]+(\.[0-9]+)?$ ]] || return 1
+  if [[ "$raw" == *% ]] || (( v > 10 )); then v=$(( v / 100.0 )); fi
+  print -r -- "$v"
+}
+
+# in/out 的下一档：沿预设档位走，但会先停在清晰上限，让人知道再往后就开始变软
+next_zoom() {
+  local dir="$1" cur="$2" smax="$3" lv best
+  if [[ "$dir" == in ]]; then
+    best=$ZOOM_MAX
+    for lv in $ZOOM_LEVELS; do
+      if (( lv > cur + 0.005 && lv < best )); then best=$lv; fi
+    done
+    if (( cur + 0.005 < smax && smax < best )); then best=$smax; fi
+  else
+    best=$ZOOM_MIN
+    for lv in $ZOOM_LEVELS; do
+      if (( lv < cur - 0.005 && lv > best )); then best=$lv; fi
+    done
+    if (( cur - 0.005 > smax && smax > best )); then best=$smax; fi
+  fi
+  print -r -- "$best"
 }
 
 # macOS 不接受高度 < 480 的显示器（会被替换成 800x600 之类的默认模式，
@@ -135,6 +209,18 @@ report_dpi() {
   fi
 }
 
+# 等核心就绪（日志里出现"已就绪"），而不是盲睡：核心创建 + 校验 + 必要时显式切 HiDPI
+# 最坏要 5 秒多。进程提前退出（创建失败）或超时则返回 1。
+wait_ready() {
+  local i
+  for i in {1..80}; do
+    grep -q '已就绪' /tmp/vdscreen.log 2>/dev/null && return 0
+    (( i > 4 )) && [[ -z "$(current_pid)" ]] && return 1
+    sleep 0.25
+  done
+  return 1
+}
+
 write_plist() {
   [[ -x "$CORE" ]] || die "找不到可执行文件 $CORE（先跑 ./build.sh，或 vdscreen install）"
   mkdir -p "$(dirname "$PLIST")"
@@ -150,6 +236,8 @@ write_plist() {
     <string>$SIZE</string>
     <string>$NAME</string>
   </array>
+  <key>RequestedSize</key><string>${REQUESTED:-$SIZE}</string>
+  <key>Zoom</key><string>${ZOOM:-1}</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><false/>
   <key>StandardOutPath</key><string>/tmp/vdscreen.log</string>
@@ -163,7 +251,13 @@ show_status() {
   local state="未加载"
   loaded && state="已加载"
   say "服务:      $state ($LABEL)"
-  say "配置:      $SIZE  \"$NAME\""
+  if [[ -f "$PLIST" ]]; then
+    NAME="$(current_name)"
+    SIZE="$(current_size)"
+    say "当前:      $SIZE  \"$NAME\""
+  else
+    say "配置:      $SIZE  \"$NAME\"（默认值，未开启）"
+  fi
   say "核心:      $CORE"
   local pid; pid="$(current_pid)"
   say "进程:      ${pid:-无}"
@@ -181,7 +275,9 @@ case "${1:-status}" in
   on)
     [[ -n "${2:-}" ]] && SIZE="$2"
     [[ -n "${3:-}" ]] && NAME="$3"
-    SIZE="$(normalize_size "$SIZE")"
+    REQUESTED="$SIZE"
+    ZOOM="${VDS_ZOOM:-1}"          # 只有 zoom / rotate 会带上；换预设、手动 on 都还原为 100%
+    SIZE="$(normalize_size "$(apply_zoom "$SIZE" "$ZOOM")")"
     write_plist
     : > /tmp/vdscreen.log
     : > /tmp/vdscreen.err
@@ -192,12 +288,16 @@ case "${1:-status}" in
       sleep 0.5
     fi
     launchctl bootstrap "$DOMAIN" "$PLIST"
-    sleep 3
-    if [[ -z "$(current_pid)" ]]; then
-      print -ru2 -- "警告: 服务已加载但进程未起来，显示器可能没创建成功"
+    if ! wait_ready; then
+      print -ru2 -- "警告: 核心没有在预期时间内就绪，显示器可能没创建成功"
+      cat /tmp/vdscreen.err 2>/dev/null >&2 || true
     fi
     cat /tmp/vdscreen.log 2>/dev/null || true
+    sleep 0.5    # 给 system_profiler 一点时间看到新显示器
     report_dpi "$NAME"
+    if (( ZOOM != 1 )); then
+      say "  缩放: $(( int(rint(ZOOM * 100)) ))%（请求 $REQUESTED → 画布 $SIZE）"
+    fi
     show_status
     ;;
   off)
@@ -219,13 +319,42 @@ case "${1:-status}" in
     fi
     ;;
   rotate)
-    # 横竖切换：把当前宽高对调（手机竖屏 ↔ 横屏）
-    local size width height
-    size="$(current_size)"
+    # 横竖切换：把"请求的尺寸"宽高对调（手机竖屏 ↔ 横屏）
+    size="$(current_requested)"
     width="${size%%x*}"
     height="${size##*x}"
     [[ "$width" =~ ^[0-9]+$ && "$height" =~ ^[0-9]+$ ]] || die "当前尺寸无法解析: $size"
-    "$0" on "${height}x${width}" "$(current_name)"
+    VDS_ZOOM="$(current_zoom)" "$0" on "${height}x${width}" "$(current_name)"
+    ;;
+  zoominfo)
+    # 机器可读: "<当前倍数> <清晰上限>"，菜单栏用它标注哪些档位会变软
+    say "$(current_zoom) $(sharp_zoom_max "$(current_requested)")"
+    ;;
+  zoom)
+    [[ -n "$(current_pid)" && -f "$PLIST" ]] || die "虚拟屏未开启，先 vdscreen on"
+    req="$(current_requested)"
+    cur="$(current_zoom)"
+    smax="$(sharp_zoom_max "$req")"
+    arg="${2:-}"
+    if [[ -z "$arg" ]]; then
+      say "当前缩放 $(( int(rint(cur * 100)) ))%（请求 $req → 画布 $(current_size)）"
+      say "清晰上限 $(( int(rint(smax * 100)) ))%，超过后 macOS 不再给 HiDPI，画面会略软"
+      exit 0
+    fi
+    case "$arg" in
+      in|out) target="$(next_zoom "$arg" "$cur" "$smax")" ;;
+      max)    target="$smax" ;;
+      reset)  target=1 ;;
+      *)      target="$(parse_zoom "$arg")" || die "用法: vdscreen zoom <125|1.25|125%|in|out|max|reset>" ;;
+    esac
+    if (( target < ZOOM_MIN )); then target=$ZOOM_MIN; fi
+    if (( target > ZOOM_MAX )); then target=$ZOOM_MAX; fi
+    target="$(printf '%.2f' $target)"
+    if (( target == cur )); then
+      say "缩放已是 $(( int(rint(cur * 100)) ))%，无需改动"
+      exit 0
+    fi
+    VDS_ZOOM="$target" "$0" on "$req" "$(current_name)"
     ;;
   presets)
     ensure_presets
