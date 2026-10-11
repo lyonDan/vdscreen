@@ -236,7 +236,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             isOn = true
             currentSize = parts.last.map(String.init) ?? ""
             currentName = parts.dropFirst().dropLast().joined(separator: " ")
-            let zoomInfo = CLI.run(["zoominfo"]).split(separator: " ").compactMap { Double($0) }
+            // 先去换行再切分：Double("1.11\n") 是 nil，否则第二个数永远解析失败，
+            // zoom/sharpMax 会停在默认 1.0，菜单恒显 100%（v1.2.6 及之前的老 bug）
+            let zoomInfo = CLI.run(["zoominfo"]).trimmingCharacters(in: .whitespacesAndNewlines)
+                .split(separator: " ").compactMap { Double($0) }
             if zoomInfo.count == 2 { zoom = zoomInfo[0]; sharpMax = zoomInfo[1] }
         } else {
             isOn = false
