@@ -186,6 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var busy = false
     private var currentName = ""
     private var currentSize = ""
+    private var orientation = "auto"   // auto | landscape | portrait，来自 CLI 配置
     private var zoom = 1.0          // 当前界面缩放（1.25 = 125%）
     private var sharpMax = 1.0      // 超过它 macOS 不再给 HiDPI，画面会略软
     private static let zoomLevels: [Double] = [0.5, 0.67, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0]
@@ -241,6 +242,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let zoomInfo = CLI.run(["zoominfo"]).trimmingCharacters(in: .whitespacesAndNewlines)
                 .split(separator: " ").compactMap { Double($0) }
             if zoomInfo.count == 2 { zoom = zoomInfo[0]; sharpMax = zoomInfo[1] }
+            // 方向锁定状态：只取 = 后到第一个非 [a-z] 字符为止（后面是中文说明）
+            let dirLine = CLI.run(["orientation"]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if let eq = dirLine.firstIndex(of: "=") {
+                let rest = dirLine[dirLine.index(after: eq)...]
+                orientation = rest.prefix { $0.isASCII && $0.isLetter } .description
+            }
         } else {
             isOn = false
         }
@@ -302,6 +309,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case "rotate":  rotate()
         case "menu":    popUpMenuAtMouse()
         case "main":    switchMain()
+        case "orientation":
+            // landscape | portrait | auto（沿用 CLI 的取值，非法值让 CLI 报错）
+            if !argument.isEmpty { applyOrientationSetting(argument) }
         case "zoom":
             // in | out | max | reset | 125 | 125% | 1.25（没有 shell，参数不会被注入；这里仍只放行合法形式）
             if argument.range(of: #"^(in|out|max|reset|[0-9]+(\.[0-9]+)?%?)$"#, options: .regularExpression) != nil {
@@ -365,9 +375,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         if isOn {
             add(to: menu, title: "关闭虚拟屏", action: #selector(turnOffAction), key: "0")
-            add(to: menu, title: "横竖切换", action: #selector(rotateAction), key: "r")
+            add(to: menu, title: "横竖切换（一次性）", action: #selector(rotateAction), key: "r")
             add(to: menu, title: "切换为主屏（虚拟屏 ↔ 其他显示器，菜单栏跟随）",
                 action: #selector(switchMainAction), key: "m")
+            let dirItem = NSMenuItem(title: "方向（换预设后保持）", action: nil, keyEquivalent: "")
+            let dirMenu = NSMenu()
+            for (label, value) in [("跟随预设", "auto"), ("锁定横屏", "landscape"), ("锁定竖屏", "portrait")] {
+                let item = add(to: dirMenu, title: label, action: #selector(applyOrientation(_:)))
+                item.representedObject = value
+                item.state = (value == orientation) ? .on : .off
+            }
+            dirItem.submenu = dirMenu
+            menu.addItem(dirItem)
 
             let zoomItem = NSMenuItem(title: "界面缩放（\(Self.percent(zoom))）", action: nil, keyEquivalent: "")
             let zoomMenu = NSMenu()
@@ -441,6 +460,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// 已是主屏则切回第一个其他显示器。分辨率不变，只移动菜单栏 / Dock。
     private func switchMain() {
         perform(["main"], title: "正在切换主屏…")
+    }
+
+    @objc private func applyOrientation(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? String else { return }
+        applyOrientationSetting(value)
+    }
+
+    private func applyOrientationSetting(_ value: String) {
+        perform(["orientation", value], title: "正在设置方向…")
     }
 
     private func turnOn() {
@@ -524,6 +552,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    static let minWidth = 320, maxWidth = 8192
+    static let minHeight = 240, maxHeight = 8192
+
     static func parseSize(_ raw: String) -> String? {
         let size = raw
             .replacingOccurrences(of: "×", with: "x")
@@ -532,7 +563,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let fields = size.split(separator: "x")
         guard fields.count == 2,
               let width = Int(fields[0]), let height = Int(fields[1]),
-              width >= 320, height >= 240, width <= 8192, height <= 8192 else { return nil }
+              width >= minWidth, height >= minHeight,
+              width <= maxWidth, height <= maxHeight else { return nil }
         return "\(width)x\(height)"
     }
 
@@ -540,19 +572,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "自定义分辨率"
-        alert.informativeText = "输入逻辑尺寸，例如 1280x800。程序会按 2× 创建背板（即 2560x1600）。"
+        alert.informativeText = "分别填宽和高（逻辑尺寸），程序会按 2× 创建背板，例如 1280 × 800 即 2560×1600。"
         alert.addButton(withTitle: "应用")
         alert.addButton(withTitle: "取消")
 
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
-        field.placeholderString = "1280x800"
-        alert.accessoryView = field
-        alert.window.initialFirstResponder = field
+        // 宽、高分开两个数字输入框，不用输「x」
+        let box = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        let widthField = NSTextField(frame: NSRect(x: 0, y: 0, width: 104, height: 24))
+        widthField.placeholderString = "宽 1280"
+        let xLabel = NSTextField(labelWithString: "×")
+        xLabel.frame = NSRect(x: 110, y: 3, width: 20, height: 18)
+        xLabel.alignment = .center
+        let heightField = NSTextField(frame: NSRect(x: 136, y: 0, width: 104, height: 24))
+        heightField.placeholderString = "高 800"
+        box.addSubview(widthField)
+        box.addSubview(xLabel)
+        box.addSubview(heightField)
+        alert.accessoryView = box
+        alert.window.initialFirstResponder = widthField
+
+        // 预填当前逻辑尺寸（若有），改起来方便
+        if isOn, let size = Self.parseSize(CLI.run(["state"]).trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: " ").last ?? "") {
+            let parts = size.split(separator: "x")
+            widthField.stringValue = String(parts[0])
+            heightField.stringValue = String(parts.count > 1 ? parts[1] : "")
+        }
 
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        guard let size = Self.parseSize(field.stringValue) else {
-            log("自定义分辨率非法: \(field.stringValue)")
-            hud.show("分辨率格式不对：\(field.stringValue)")
+        let raw = "\(widthField.stringValue)x\(heightField.stringValue)"
+        guard let size = Self.parseSize(raw) else {
+            log("自定义分辨率非法: \(raw)")
+            hud.show("宽、高要分别填 \(Self.minWidth)–\(Self.maxWidth) 和 \(Self.minHeight)–\(Self.maxHeight) 的数字")
             return
         }
         applyCustom(size)

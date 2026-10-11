@@ -31,6 +31,16 @@ eq "矮屏等比放大"        1044x480  "$(normalize_size 874x402 2>/dev/null)"
 eq "恰好 480 不动"       1000x480  "$(normalize_size 1000x480 2>/dev/null)"
 eq "无法解析原样返回"    abc       "$(normalize_size abc 2>/dev/null)"
 
+# ── apply_orientation：方向锁定 ──
+eq "auto 原样"          1133x744  "$(apply_orientation 1133x744)"
+ORIENTATION="landscape"; eq "锁横：横屏不动" 1133x744 "$(apply_orientation 1133x744)"
+ORIENTATION="landscape"; eq "锁横：竖屏转横" 1748x804 "$(apply_orientation 804x1748)"
+ORIENTATION="portrait";  eq "锁竖：竖屏不动" 804x1748 "$(apply_orientation 804x1748)"
+ORIENTATION="portrait";  eq "锁竖：横屏转竖" 744x1133 "$(apply_orientation 1133x744)"
+ORIENTATION="landscape"; eq "方形尺寸不动"   800x800  "$(apply_orientation 800x800)"
+ORIENTATION="portrait";  eq "无法解析原样"   abc      "$(apply_orientation abc)"
+ORIENTATION="auto"
+
 # ── apply_zoom ──
 eq "倍数 1 原样"         804x1748  "$(apply_zoom 804x1748 1)"
 eq "倍数 1 保留奇数"     1133x745  "$(apply_zoom 1133x745 1)"
@@ -91,10 +101,13 @@ while IFS= read -r line; do
   count=$((count + 1)); names+=("$name")
   [[ "$size" =~ '^[0-9]+x[0-9]+$' ]] || { badfmt=$((badfmt + 1)); print -r -- "  坏预设: $line"; }
 done < "$PRESETS"
-eq "默认预设数量" 13 "$count"
+eq "默认预设数量" 11 "$count"
 eq "预设尺寸格式都合法" 0 "$badfmt"
 uniq=(${(u)names}); eq "预设名不重复" "$count" "${#uniq}"
+eq "已移除 iPhone SE"    ""       "$(preset_size 'iPhone SE (3rd)')"
+eq "已移除 iPhone Air"   ""       "$(preset_size 'iPhone Air')"
 eq "按名字查预设"       1133x744 "$(preset_size 'iPad mini 7')"
+eq "常见显示器分辨率"    1600x900 "$(preset_size '1600x900')"
 eq "名字含斜杠的预设"   1180x820 "$(preset_size 'iPad Air 11 / iPad 10-11')"
 eq "查不到预设返回空"   ""       "$(preset_size '不存在')"
 

@@ -2,6 +2,25 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [1.2.8]
+
+### 新增
+- **方向锁定**：`vdscreen orientation 横屏|竖屏|auto` 与菜单「方向」子菜单（勾选项，持久保存）。
+  锁定后换预设、换分辨率都保持所选方向；对正在运行的虚拟屏设置时立即重摆。`rotate` 仍为一次性切换
+- URL scheme 新增 `vdscreen://orientation/<landscape|portrait|auto>`
+
+### 变更
+- 菜单栏「自定义分辨率」改为**宽、高两个数字输入框**，不用再输入乘号；
+  预填当前逻辑尺寸，范围超限会提示有效区间
+- 预设调整：移除 iPhone Air、iPhone SE (3rd)；通用分辨率改为 1600×900、1280×720、1920×1080
+  （已是用户机器上的旧 presets 文件不受影响，新装生效）
+
+## [1.2.7]
+
+### 修复
+- 菜单栏界面缩放恒显 100%：`zoominfo` 输出带换行导致第二个数解析失败（缩放本身一直生效，
+  坏的是显示层：标题、勾选、「略软」标注）
+
 ## [1.2.6]
 
 ### 新增

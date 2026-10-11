@@ -7,7 +7,10 @@
 #   vdscreen status              查看状态（不带参数时的默认动作）
 #   vdscreen presets             列出预设分辨率
 #   vdscreen preset <名字>       按预设启动（如: vdscreen preset "iPad mini 7"）
-#   vdscreen rotate              横竖切换（交换当前宽高，缩放保持）
+#   vdscreen rotate              横竖切换（一次性，交换当前宽高，缩放保持）
+#   vdscreen orientation         查看方向设置（跟随预设 / 锁定横屏 / 锁定竖屏）
+#   vdscreen orientation 横屏    锁定横屏（换预设/分辨率后保持；竖屏同理）
+#   vdscreen orientation auto    取消锁定，方向跟随预设
 #   vdscreen zoom                查看当前界面缩放与清晰上限
 #   vdscreen zoom 125            界面缩放到 125%（也可写 1.25 / 125%）
 #   vdscreen zoom in|out|max|reset  放大 / 缩小 / 放到最大清晰档 / 还原 100%
@@ -37,6 +40,7 @@ CORE="$SELF_DIR/vdscreen-core"
 NAME="iPad mini 7"
 SIZE="1133x744"
 ZOOM=1
+ORIENTATION="auto"   # auto=跟随预设 | landscape=锁定横屏 | portrait=锁定竖屏
 
 [[ -f "$CONFIG" ]] && source "$CONFIG"
 
@@ -87,13 +91,12 @@ iPad Pro 13 (M4)             = 1376x1032
 iPhone 18 Pro                = 804x1748
 iPhone 18 Pro Max            = 880x1912
 iPhone 17 / 18 (6.3")        = 804x1748
-iPhone Air                   = 840x1824
-iPhone SE (3rd)              = 750x1334
 
-# 通用分辨率
-1080p                        = 960x540
-1440p                        = 1280x720
-4K                           = 1920x1080
+# 通用显示器分辨率（逻辑尺寸，程序自动按 2x 背板创建；
+# 想要其他分辨率直接照格式加一行，或用 vdscreen on <宽x高> 临时指定）
+1600x900                     = 1600x900
+1280x720                     = 1280x720
+1920x1080                    = 1920x1080
 EOF
 }
 
@@ -113,6 +116,23 @@ current_size() {
   local value=""
   [[ -f "$PLIST" ]] && value="$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:1" "$PLIST" 2>/dev/null)"
   print -r -- "${value:-$SIZE}"
+}
+
+# 应用方向锁定：auto 原样返回；landscape/portrait 把宽高摆成对应方向（方形尺寸不动）
+apply_orientation() {
+  local size="$1" w h
+  if [[ "$ORIENTATION" != "landscape" && "$ORIENTATION" != "portrait" ]]; then
+    print -r -- "$size"; return
+  fi
+  w="${size%%x*}"; h="${size##*x}"
+  if [[ "$w" =~ ^[0-9]+$ && "$h" =~ ^[0-9]+$ ]] && (( w != h )); then
+    # 注意用算术比较：[[ h > w ]] 是字典序（804 > 1748），方向判断会错
+    if [[ "$ORIENTATION" == "landscape" ]] && (( h > w )); then print -r -- "${h}x${w}"
+    elif [[ "$ORIENTATION" == "portrait" ]] && (( w > h )); then print -r -- "${h}x${w}"
+    else print -r -- "$size"; fi
+  else
+    print -r -- "$size"
+  fi
 }
 
 # 用户原本请求的尺寸（normalize_size 放大之前）。rotate 以它为准，
@@ -300,6 +320,8 @@ case "${1:-status}" in
   on)
     [[ -n "${2:-}" ]] && SIZE="$2"
     [[ -n "${3:-}" ]] && NAME="$3"
+    # 方向锁定：换预设/分辨率也保持所选方向（auto = 跟随预设原样）
+    SIZE="$(apply_orientation "$SIZE")"
     REQUESTED="$SIZE"
     ZOOM="${VDS_ZOOM:-1}"          # 只有 zoom / rotate 会带上；换预设、手动 on 都还原为 100%
     SIZE="$(normalize_size "$(apply_zoom "$SIZE" "$ZOOM")")"
@@ -335,6 +357,38 @@ case "${1:-status}" in
     "$0" on "${2:-}" "${3:-}"
     ;;
   status) show_status ;;
+  orientation)
+    # 方向锁定：横屏 / 竖屏 勾选项（持久，换预设/分辨率后保持）；auto 取消锁定
+    arg="${2:-}"
+    if [[ -z "$arg" ]]; then
+      case "$ORIENTATION" in
+        landscape) say "orientation=landscape（锁定横屏，换预设/分辨率后保持）" ;;
+        portrait)  say "orientation=portrait（锁定竖屏，换预设/分辨率后保持）" ;;
+        *)         say "orientation=auto（跟随预设；可设: 横屏|竖屏|auto）" ;;
+      esac
+      exit 0
+    fi
+    case "$arg" in
+      横屏|landscape|horizontal) ORIENTATION="landscape" ;;
+      竖屏|portrait|vertical)    ORIENTATION="portrait" ;;
+      auto|跟随|取消)            ORIENTATION="auto" ;;
+      *) die "用法: vdscreen orientation [横屏|竖屏|auto]" ;;
+    esac
+    mkdir -p "$CONFIG_DIR"
+    [[ -f "$CONFIG" ]] || { echo "CORE=\"$SELF_DIR/vdscreen-core\""; echo "NAME=\"$NAME\""; echo "SIZE=\"$SIZE\""; } > "$CONFIG"
+    # 重写配置，保留所有已有键（LABEL/CORE/NAME/SIZE），追加/替换 ORIENTATION
+    { grep -v '^ORIENTATION=' "$CONFIG" 2>/dev/null; echo "ORIENTATION=\"$ORIENTATION\""; } > "$CONFIG.new" && mv "$CONFIG.new" "$CONFIG"
+    case "$ORIENTATION" in
+      landscape) say "已锁定横屏（正在运行的虚拟屏不自动切，rotate 或换预设后生效）" ;;
+      portrait)  say "已锁定竖屏（正在运行的虚拟屏不自动切，rotate 或换预设后生效）" ;;
+      auto)      say "已取消锁定，方向跟随预设" ;;
+    esac
+    if [[ -n "$(current_pid)" && -f "$PLIST" ]]; then
+      # 立即按所选方向重摆当前屏（保持缩放与名字）
+      VDS_ZOOM="$(current_zoom)" "$0" on "$(apply_orientation "$(current_requested)")" "$(current_name)" >/dev/null
+      say "当前虚拟屏已按所选方向应用"
+    fi
+    ;;
   state)
     # 机器可读：供菜单栏等程序解析
     if [[ -n "$(current_pid)" && -f "$PLIST" ]]; then

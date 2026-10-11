@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 # VERSION 写进 Info.plist（发布流程会传入 tag 版本）；SIGN_IDENTITY 默认 ad-hoc，
 # 有开发者证书时可用 SIGN_IDENTITY="Developer ID Application: ..." 覆盖
-VERSION="${VERSION:-1.2.7}"
+VERSION="${VERSION:-1.2.8}"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 
 clang -fobjc-arc -framework Foundation -framework AppKit -framework CoreGraphics \
