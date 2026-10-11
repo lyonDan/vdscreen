@@ -2,6 +2,12 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [1.2.3]
+
+### 新增
+- 一键安装脚本：`curl -fsSL …/install.sh | zsh`，从最新 Release 安装 App 与命令行，公证校验不通过则中止
+- Release 附件新增 DMG（打开后拖入 Applications）
+
 ## [1.2.2]
 
 ### 变更

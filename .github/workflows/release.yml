@@ -71,7 +71,12 @@ jobs:
           v="${{ steps.ver.outputs.version }}"
           mkdir dist
           ditto -c -k --keepParent VDScreenBar.app "dist/VDScreenBar-$v-arm64.zip"
-          (cd dist && shasum -a 256 *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          # DMG：拖入 /Applications 即装
+          ln -s /Applications /Applications_link
+          hdiutil create -volname VDScreenBar -srcfolder VDScreenBar.app -srcfolder /Applications_link \
+            -ov -format UDZO "dist/VDScreenBar-$v.dmg"
+          rm /Applications_link
+          (cd dist && shasum -a 256 *.zip *.dmg > SHA256SUMS.txt && cat SHA256SUMS.txt)
 
       - name: 生成 Homebrew formula（对应本次 tag 的源码包）
         if: github.ref_type == 'tag'

@@ -47,17 +47,18 @@ git clone https://github.com/lyonDan/vdscreen.git && cd vdscreen
 cp -R VDScreenBar.app ~/Applications/
 ```
 
-### 预编译包
-
-[Releases](https://github.com/lyonDan/vdscreen/releases) 提供 `VDScreenBar-<版本>-arm64.zip`（仅 Apple Silicon，
-Intel Mac 请从源码构建）。包内的 App 使用 Developer ID 签名并经 Apple 公证，解压后可直接打开，
-Gatekeeper 不会拦截：
+### 一键安装（预编译包）
 
 ```sh
-unzip VDScreenBar-<版本>-arm64.zip && cp -R VDScreenBar.app ~/Applications/
+curl -fsSL https://raw.githubusercontent.com/lyonDan/vdscreen/main/install.sh | zsh
 ```
 
-若校验包的完整性，可对照 Release 附件中的 `SHA256SUMS.txt`。
+下载最新 Release 的预编译包（Developer ID 签名 + Apple 公证，Gatekeeper 校验通过才安装），
+装好菜单栏 App（`~/Applications/VDScreenBar.app`）与命令行工具（`~/bin/vdscreen`）。
+
+也可手动安装：[Releases](https://github.com/lyonDan/vdscreen/releases) 提供 `VDScreenBar-<版本>.dmg`
+（打开后拖入 Applications）与 `VDScreenBar-<版本>-arm64.zip`（仅 Apple Silicon；Intel Mac 请从源码构建）。
+完整性校验可对照 Release 附件中的 `SHA256SUMS.txt`。
 
 ## 快速开始
 
@@ -280,6 +281,7 @@ CGVirtualDisplayShim.h      私有 API 的最小声明
 vdscreen                    管理命令行（zsh）
 vdscreen-bar.swift          菜单栏应用（菜单、全局快捷键、悬浮提示、URL scheme）
 build.sh                    构建核心并打包 VDScreenBar.app
+install.sh                  一键安装脚本（从 Release 下载预编译包）
 make-icon.swift             生成 AppIcon.icns（仅修改图标设计时需要运行）
 AppIcon.icns                应用图标
 tests/                      单元测试与集成测试
