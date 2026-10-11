@@ -90,6 +90,7 @@ $ vdscreen preset "iPad mini 7"
 | `vdscreen presets` | 列出预设 |
 | `vdscreen preset <名字>` | 按预设开启 |
 | `vdscreen rotate` | 横竖屏切换，保持当前缩放 |
+| `vdscreen main` | 一键切换主屏：虚拟屏 ↔ 第一个其他显示器（见[主屏切换](#主屏切换)） |
 | `vdscreen zoom [倍数\|in\|out\|max\|reset]` | 界面缩放；不带参数显示当前值与清晰上限 |
 | `vdscreen config` | 查看配置 |
 | `vdscreen set <size\|name\|core> <值>` | 修改默认尺寸 / 名字 / 核心路径 |
@@ -109,7 +110,7 @@ $ vdscreen preset "iPad mini 7"
 
 | 入口 | 用法 |
 | --- | --- |
-| 全局快捷键 | `⌥⌘0` 开/关 · `⌥⌘R` 横竖切换 · `⌥⌘=` / `⌥⌘-` 放大 / 缩小界面 · `⌥⌘1`…`⌥⌘9` 切到第 1…9 条预设 · `⌃⌥⌘V` 在鼠标处弹出完整菜单 |
+| 全局快捷键 | `⌥⌘0` 开/关 · `⌥⌘R` 横竖切换 · `⌥⌘=` / `⌥⌘-` 放大 / 缩小界面 · `⌥⌘M` 切换主屏 · `⌥⌘1`…`⌥⌘9` 切到第 1…9 条预设 · `⌃⌥⌘V` 在鼠标处弹出完整菜单 |
 | 悬浮提示 | 快捷键操作后，屏幕下方显示结果，如「✓ iPad mini 7 · 1133x744 · 横屏 · HiDPI」 |
 | URL scheme | `open vdscreen://rotate`，见下 |
 | Dock 图标 | 在菜单中勾选「在 Dock 显示图标」；点击或右键均可弹出菜单 |
@@ -119,7 +120,7 @@ $ vdscreen preset "iPad mini 7"
 快捷键通过 Carbon `RegisterEventHotKey` 注册，**不需要辅助功能权限**。若某个组合已被其他程序占用，
 会在日志中记录「注册失败」（见[故障排查](#故障排查)）。`⌥⌘1`…`⌥⌘9` 对应预设文件的行序。
 
-**URL scheme**：`vdscreen://<命令>`，命令为 `on`、`off`、`toggle`、`rotate`、`menu`、`preset/<名字>`、
+**URL scheme**：`vdscreen://<命令>`，命令为 `on`、`off`、`toggle`、`rotate`、`main`、`menu`、`preset/<名字>`、
 `size/<宽x高>`、`zoom/<倍数|in|out|max|reset>`。仅在本机可用（脚本、SSH、Mac 上的快捷指令）；
 iOS 的快捷指令无法打开 Mac 的自定义 scheme。任何网页都可以请求打开 `vdscreen://…`，浏览器会先确认；
 不需要此功能可删去 `build.sh` 里 `Info.plist` 的 `CFBundleURLTypes`。
@@ -174,6 +175,16 @@ HiDPI 的判定由系统内部决定，没有公开规则。在 macOS 27 上的�
 
 估算公式（宽 ≥ 670、高 ≥ 600、面积 ≥ 48 万点）取了保守的余量，只用于菜单标注与 `zoom max`；
 最终是否 HiDPI 以切换后的实际检测为准。缩小界面（< 100%）会使画布变大，观察到 67%–75% 仍为 HiDPI。
+
+## 主屏切换
+
+远程连接只看到虚拟屏时，其他屏上已打开的窗口够不着。`vdscreen main` 一键把虚拟屏
+**切换为主屏**：菜单栏、Dock 跟着移过来（分辨率不变），已打开的窗口原样可见、可操作；
+再触发一次则切回第一个其他在线显示器。入口：命令行、菜单项「切换为主屏」、全局快捷键
+`⌥⌘M`、`vdscreen://main`。
+
+主屏 = 显示器布局中位于 (0,0) 的那块屏（系统即此规则，本项目通过调整布局实现）。
+注意：窄的竖屏虚拟屏当主屏时，菜单栏可能被挤爆 —— 这正是上面备用入口存在的意义。
 
 ## 配置与文件位置
 

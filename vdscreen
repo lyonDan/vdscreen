@@ -11,6 +11,7 @@
 #   vdscreen zoom                查看当前界面缩放与清晰上限
 #   vdscreen zoom 125            界面缩放到 125%（也可写 1.25 / 125%）
 #   vdscreen zoom in|out|max|reset  放大 / 缩小 / 放到最大清晰档 / 还原 100%
+#   vdscreen main                 一键切换主屏（虚拟屏 ↔ 第一个其他显示器）
 #   vdscreen state               机器可读状态: "on <名字> <宽x高>" 或 "off"
 #   vdscreen config              查看配置文件
 #   vdscreen set size 1133x744   改默认尺寸
@@ -384,6 +385,15 @@ case "${1:-status}" in
   presets)
     ensure_presets
     cat "$PRESETS"
+    ;;
+  main)
+    # 一键主屏：虚拟屏 ↔ 第一个其他在线显示器。主屏 = 菜单栏/Dock 所在的屏，
+    # 分辨率不变；再执行一次即切回。远程时想看到/操作已打开的窗口，把虚拟屏设为主屏即可。
+    [[ -n "$(current_pid)" && -f "$PLIST" ]] || die "虚拟屏未开启，先 vdscreen on"
+    [[ -x "$CORE" ]] || die "找不到可执行文件 $CORE（先跑 ./build.sh，或 vdscreen install）"
+    vid="$(grep -o 'displayID=[0-9]*' /tmp/vdscreen.log 2>/dev/null | tail -1 | cut -d= -f2 || true)"
+    [[ -n "$vid" ]] || die "日志里找不到 displayID，查看 /tmp/vdscreen.log"
+    "$CORE" main "$vid"
     ;;
   preset)
     [[ -n "${2:-}" ]] || die "用法: vdscreen preset <预设名>（用 vdscreen presets 查看）"

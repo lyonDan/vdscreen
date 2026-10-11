@@ -2,6 +2,13 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [1.2.6]
+
+### 新增
+- **一键切换主屏**：`vdscreen main`、菜单项、全局快捷键 `⌥⌘M`、`vdscreen://main`。
+  把虚拟屏设为主屏（菜单栏 / Dock 跟随，分辨率不变），远程时即可看到并操作其他屏上已打开的窗口；
+  再触发一次切回第一个其他在线显示器
+
 ## [1.2.5]
 
 ### 变更

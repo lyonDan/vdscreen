@@ -119,6 +119,7 @@ eq "set 不会把沿用的旧标签固化进配置" 0 "$(grep -c '^LABEL=' "$leg
 out="$(zsh "$ROOT/vdscreen" state 2>&1)";           eq "state（未开启）" off "$out"
 zsh "$ROOT/vdscreen" zoom >/dev/null 2>&1;          eq "未开启时 zoom 报错" 1 $?
 zsh "$ROOT/vdscreen" rotate >/dev/null 2>&1;        eq "未开启时 rotate 报错" 1 $?
+zsh "$ROOT/vdscreen" main >/dev/null 2>&1;           eq "未开启时 main 报错" 1 $?
 zsh "$ROOT/vdscreen" preset 不存在 >/dev/null 2>&1; eq "未知预设报错" 1 $?
 zsh "$ROOT/vdscreen" bogus >/dev/null 2>&1;         eq "未知命令报错" 1 $?
 eq "help 有内容" 1 "$(zsh "$ROOT/vdscreen" help | grep -c 'vdscreen on')"

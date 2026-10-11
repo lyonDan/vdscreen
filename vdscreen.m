@@ -6,6 +6,8 @@
 //
 // 进程存活期间显示器存在，退出（Ctrl-C / kill）即自动移除。
 //
+// 子命令: vdscreen-core main <displayID>   把指定显示器设为主屏（已是主屏则切回第一个其他屏）
+//
 // ── 关于 HiDPI ──────────────────────────────────────────────────────────
 // 申请 HiDPI 需要同时满足：
 //   1. maxPixels = 逻辑尺寸 × 2
@@ -123,8 +125,56 @@ static BOOL selectHiDPIMode(CGVirtualDisplay *display, int w, int h) {
     return done;
 }
 
+/// 「一键主屏」：让指定显示器成为主屏（菜单栏 / Dock 跟随过去，分辨率不变）。
+/// 主屏 = 显示器布局中位于 (0,0) 的那块：同一份配置里把目标挪到 (0,0)、
+/// 当前主屏挪到目标右侧即可生效（只移目标不行 —— 会和原主屏的 (0,0) 冲突，被系统弹回）。
+/// 目标已是主屏时，改切第一个其他在线显示器（再触发一次 = 还原）。
+static int switchMainDisplay(CGDirectDisplayID target) {
+    CGDirectDisplayID online[16];
+    uint32_t count = 0;
+    CGGetOnlineDisplayList(16, online, &count);
+
+    BOOL found = NO;
+    for (uint32_t i = 0; i < count; i++) if (online[i] == target) found = YES;
+    if (!found) { fprintf(stderr, "错误: 显示器 %u 不在线\n", target); return 1; }
+
+    if (CGMainDisplayID() == target) {
+        CGDirectDisplayID other = kCGNullDirectDisplay;
+        for (uint32_t i = 0; i < count; i++) if (online[i] != target) { other = online[i]; break; }
+        if (other == kCGNullDirectDisplay) { printf("没有其他显示器，无需切换\n"); return 0; }
+        target = other;
+    }
+
+    CGDirectDisplayID current = CGMainDisplayID();
+    CGSize size = CGDisplayBounds(target).size;
+    CGDisplayConfigRef cfg = NULL;
+    if (CGBeginDisplayConfiguration(&cfg) != kCGErrorSuccess) {
+        fprintf(stderr, "错误: 无法开始显示配置\n");
+        return 1;
+    }
+    if (current != target) CGConfigureDisplayOrigin(cfg, current, (int)size.width, 0);
+    CGConfigureDisplayOrigin(cfg, target, 0, 0);
+    CGError err = CGCompleteDisplayConfiguration(cfg, kCGConfigurePermanently);
+    if (err != kCGErrorSuccess) {
+        fprintf(stderr, "错误: 显示配置未生效 (%d)\n", err);
+        return 1;
+    }
+
+    for (int i = 0; i < 20 && CGMainDisplayID() != target; i++) pumpRunLoop(0.1);
+    if (CGMainDisplayID() != target) {
+        fprintf(stderr, "警告: 主屏没有切换成功\n");
+        return 1;
+    }
+    printf("已切换: displayID=%u 现在是主屏\n", target);
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
     @autoreleasepool {
+        // 子命令：vdscreen-core main <displayID> —— 与"创建虚拟屏"共用一个二进制
+        if (argc == 3 && strcmp(argv[1], "main") == 0) {
+            return switchMainDisplay((CGDirectDisplayID)strtoul(argv[2], NULL, 0));
+        }
         if (argc < 2) {
             fprintf(stderr, "用法: %s <逻辑宽>x<逻辑高> [名字]\n例: %s 1133x744 \"iPad mini 7\"\n",
                     argv[0], argv[0]);

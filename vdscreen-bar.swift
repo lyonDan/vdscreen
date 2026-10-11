@@ -5,7 +5,7 @@
 // 实际动作全部交给 vdscreen CLI 执行，这里只是前端。
 //
 // 入口不止菜单栏图标 —— 竖屏时菜单栏会被挤爆，图标可能不可见，所以另有：
-//   · 全局快捷键（⌥⌘0 开关 / ⌥⌘R 横竖切换 / ⌥⌘1…9 选预设 / ⌥⌘= ⌥⌘- 界面缩放 / ⌃⌥⌘V 弹出菜单）
+//   · 全局快捷键（⌥⌘0 开关 / ⌥⌘R 横竖切换 / ⌥⌘1…9 选预设 / ⌥⌘= ⌥⌘- 界面缩放 / ⌥⌘M 切换主屏 / ⌃⌥⌘V 弹出菜单）
 //   · URL scheme（vdscreen://rotate 等，见 handle(url:)）
 //   · 可选的 Dock 图标（右键直接出菜单）
 //   · 再次打开 App（Spotlight / Launchpad）时在鼠标处弹出菜单
@@ -267,6 +267,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hotKeys.register(keyCode: kVK_ANSI_R, modifiers: mods, label: "⌥⌘R") { [weak self] in self?.rotate() }
         hotKeys.register(keyCode: kVK_ANSI_Equal, modifiers: mods, label: "⌥⌘=") { [weak self] in self?.zoomStep("in") }
         hotKeys.register(keyCode: kVK_ANSI_Minus, modifiers: mods, label: "⌥⌘-") { [weak self] in self?.zoomStep("out") }
+        hotKeys.register(keyCode: kVK_ANSI_M, modifiers: mods, label: "⌥⌘M") { [weak self] in
+            self?.switchMain()
+        }
         hotKeys.register(keyCode: kVK_ANSI_V, modifiers: mods | controlKey, label: "⌃⌥⌘V") { [weak self] in
             self?.popUpMenuAtMouse()
         }
@@ -295,6 +298,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case "toggle":  toggle()
         case "rotate":  rotate()
         case "menu":    popUpMenuAtMouse()
+        case "main":    switchMain()
         case "zoom":
             // in | out | max | reset | 125 | 125% | 1.25（没有 shell，参数不会被注入；这里仍只放行合法形式）
             if argument.range(of: #"^(in|out|max|reset|[0-9]+(\.[0-9]+)?%?)$"#, options: .regularExpression) != nil {
@@ -359,6 +363,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if isOn {
             add(to: menu, title: "关闭虚拟屏", action: #selector(turnOffAction), key: "0")
             add(to: menu, title: "横竖切换", action: #selector(rotateAction), key: "r")
+            add(to: menu, title: "切换为主屏（虚拟屏 ↔ 其他显示器，菜单栏跟随）",
+                action: #selector(switchMainAction), key: "m")
 
             let zoomItem = NSMenuItem(title: "界面缩放（\(Self.percent(zoom))）", action: nil, keyEquivalent: "")
             let zoomMenu = NSMenu()
@@ -426,6 +432,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func turnOffAction() { turnOff() }
     @objc private func turnOnAction() { turnOn() }
     @objc private func rotateAction() { rotate() }
+    @objc private func switchMainAction() { switchMain() }
+
+    /// 一键主屏：让虚拟屏成为主屏（远程时就能看到/操作已打开的窗口）；
+    /// 已是主屏则切回第一个其他显示器。分辨率不变，只移动菜单栏 / Dock。
+    private func switchMain() {
+        perform(["main"], title: "正在切换主屏…")
+    }
 
     private func turnOn() {
         perform(["on"], title: "正在开启虚拟屏…")
@@ -567,6 +580,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// 根据 CLI 回显生成结果提示（"HiDPI"/"非 HiDPI" 来自 CLI 对 system_profiler 的核对）
     private func summary(of output: String, command: String) -> String {
         if command == "off" { return "虚拟屏已关闭" }
+        if command == "main" {
+            if output.contains("已切换") { return "✓ 已切换主屏（菜单栏已跟随）" }
+            if output.contains("没有其他显示器") { return output }
+        }
         guard isOn else { return "✗ 虚拟屏没有起来，详见 /tmp/vdscreen-bar.log" }
         let quality = output.contains("非 HiDPI") ? "非 HiDPI（画面略软）"
             : output.contains("HiDPI") ? "HiDPI" : ""
