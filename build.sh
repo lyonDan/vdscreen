@@ -4,5 +4,5 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 clang -fobjc-arc -framework Foundation -framework AppKit -framework CoreGraphics \
-      -o vdscreen vdscreen.m
-echo "编译完成: $(pwd)/vdscreen"
+      -o vdscreen-core vdscreen.m
+echo "编译完成: $(pwd)/vdscreen-core"

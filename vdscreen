@@ -1,0 +1,155 @@
+#!/bin/zsh
+# vdscreen — macOS 虚拟显示器管理
+#
+#   vdscreen on [宽x高] [名字]   启动虚拟屏（可临时覆盖尺寸/名字）
+#   vdscreen off                 关闭
+#   vdscreen restart             重启
+#   vdscreen status              查看状态（不带参数时的默认动作）
+#   vdscreen config              查看配置文件
+#   vdscreen set size 1133x744   改默认尺寸
+#   vdscreen set name "iPad mini 7"
+#   vdscreen install             装到 ~/bin，之后任意目录可用
+#   vdscreen uninstall           停止并移除 ~/bin 里的命令
+#
+# 显示器与创建它的进程同生命周期，由 LaunchAgent 托管。
+# 只要 plist 存在，登录后会自动拉起；off 会移除 plist，确保关闭后不再自动启动。
+
+set -euo pipefail
+
+CONFIG_DIR="$HOME/.config/vdscreen"
+CONFIG="$CONFIG_DIR/config"
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# 默认值；~/.config/vdscreen/config 里的同名变量会覆盖它们。
+# 改 LABEL 可以并存多块虚拟屏（Each label = one agent = one screen）。
+LABEL="com.local.vdscreen.ipadmini7"
+CORE="$SELF_DIR/vdscreen-core"
+NAME="iPad mini 7"
+SIZE="1133x744"
+
+[[ -f "$CONFIG" ]] && source "$CONFIG"
+
+# 必须在读取配置之后计算，否则配置里改 LABEL 会失效
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+DOMAIN="gui/$(id -u)"
+
+say()  { print -r -- "$@" }
+die()  { print -ru2 -- "错误: $@"; exit 1; }
+loaded() { launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1; }
+
+write_plist() {
+  [[ -x "$CORE" ]] || die "找不到可执行文件 $CORE（先跑 ./build.sh，或 vdscreen install）"
+  mkdir -p "$(dirname "$PLIST")"
+  cat > "$PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$CORE</string>
+    <string>$SIZE</string>
+    <string>$NAME</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><false/>
+  <key>StandardOutPath</key><string>/tmp/vdscreen.log</string>
+  <key>StandardErrorPath</key><string>/tmp/vdscreen.err</string>
+</dict>
+</plist>
+EOF
+}
+
+show_status() {
+  local state="未加载"
+  loaded && state="已加载"
+  say "服务:      $state ($LABEL)"
+  say "配置:      $SIZE  \"$NAME\""
+  say "核心:      $CORE"
+  local pid=""
+  pid="$(launchctl print "$DOMAIN/$LABEL" 2>/dev/null | awk '/^[[:space:]]*pid = /{print $3; exit}')"
+  say "进程:      ${pid:-无}"
+  local info
+  info="$(system_profiler SPDisplaysDataType 2>/dev/null | grep -A 3 "^        $NAME:" | head -4)"
+  if [[ -n "$info" ]]; then
+    say "显示器:"
+    print -r -- "$info" | sed 's/^/           /'
+  else
+    say "显示器:    未出现"
+  fi
+}
+
+case "${1:-status}" in
+  on)
+    [[ -n "${2:-}" ]] && SIZE="$2"
+    [[ -n "${3:-}" ]] && NAME="$3"
+    write_plist
+    if loaded; then launchctl kickstart -k "$DOMAIN/$LABEL"; else launchctl bootstrap "$DOMAIN" "$PLIST"; fi
+    sleep 3
+    cat /tmp/vdscreen.log 2>/dev/null || true
+    show_status
+    ;;
+  off)
+    if loaded; then launchctl bootout "$DOMAIN/$LABEL"; fi
+    [[ -f "$PLIST" ]] && mv "$PLIST" "$PLIST.disabled"
+    say "已关闭（是否开机自启：否）"
+    ;;
+  restart)
+    "$0" off >/dev/null 2>&1 || true
+    "$0" on "${2:-}" "${3:-}"
+    ;;
+  status) show_status ;;
+  config)
+    mkdir -p "$CONFIG_DIR"
+    [[ -f "$CONFIG" ]] || cat > "$CONFIG" <<EOF
+CORE="$SELF_DIR/vdscreen-core"
+NAME="iPad mini 7"
+SIZE="1133x744"
+EOF
+    say "$CONFIG:"; say ""
+    cat "$CONFIG"
+    ;;
+  set)
+    key="${2:-}"; val="${3:-}"
+    [[ -n "$key" && -n "$val" ]] || die "用法: vdscreen set <size|name|core> <值>"
+    mkdir -p "$CONFIG_DIR"
+    [[ -f "$CONFIG" ]] || cat > "$CONFIG" <<EOF
+CORE="$CORE"
+NAME="$NAME"
+SIZE="$SIZE"
+EOF
+    case "$key" in
+      size) SIZE="$val" ;;
+      name) NAME="$val" ;;
+      core) CORE="$val" ;;
+      *) die "只支持 size / name / core" ;;
+    esac
+    # 重写配置（保持三行结构）
+    { echo "CORE=\"$CORE\""; echo "NAME=\"$NAME\""; echo "SIZE=\"$SIZE\""; } > "$CONFIG"
+    say "已更新 $key = $val"
+    loaded && say "（正在运行，执行 vdscreen restart 生效）"
+    ;;
+  install)
+    [[ -x "$CORE" ]] || { say "先编译核心…"; "$SELF_DIR/build.sh"; }
+    mkdir -p "$CONFIG_DIR"
+    { echo "CORE=\"$SELF_DIR/vdscreen-core\""; echo "NAME=\"$NAME\""; echo "SIZE=\"$SIZE\""; } > "$CONFIG"
+    mkdir -p "$HOME/bin"
+    cp "$SELF_DIR/vdscreen" "$HOME/bin/vdscreen"
+    chmod +x "$HOME/bin/vdscreen"
+    say "已安装: ~/bin/vdscreen"
+    case ":$PATH:" in
+      *":$HOME/bin:"*) say "现在可以直接用: vdscreen status" ;;
+      *) say "注意: ~/bin 不在 PATH 中，请把它加进 PATH" ;;
+    esac
+    ;;
+  uninstall)
+    "$0" off >/dev/null 2>&1 || true
+    [[ -f "$HOME/bin/vdscreen" ]] && rm "$HOME/bin/vdscreen"
+    say "已卸载命令（保留 $CONFIG 与仓库目录）"
+    ;;
+  help|-h|--help)
+    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+    ;;
+  *) die "未知命令: $1（试试 vdscreen help）" ;;
+esac
