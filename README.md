@@ -18,7 +18,9 @@
 ## 系统要求
 
 - macOS 13 或更高（最低部署目标为 13.0；仅在 macOS 27、Apple Silicon 上测试过）
-- 从源码构建需要 Xcode Command Line Tools：`xcode-select --install`
+- 从源码构建（含 Homebrew 安装）需要 Xcode **Command Line Tools**：`xcode-select --install`。
+  不需要完整的 Xcode。Homebrew 还要求 Command Line Tools 的版本与当前 macOS 匹配，
+  见[故障排查](#故障排查)；不想安装编译工具可使用[预编译包](#预编译包)
 
 ## 安装
 
@@ -195,6 +197,7 @@ launchctl print gui/$(id -u)/io.github.lyondan.vdscreen
 | 切换到某个尺寸后画面发软 | 该尺寸系统不提供 HiDPI，输出里会标注「非 HiDPI」；换更大的尺寸或降低缩放 |
 | 提示「核心没有在预期时间内就绪」 | 查看 `/tmp/vdscreen.err`；同一身份的虚拟屏已在运行也会导致创建失败 |
 | 某个快捷键无反应 | 在 `/tmp/vdscreen-bar.log` 中搜「注册失败」，说明组合被其他程序占用 |
+| `brew install` 报 `Your Command Line Tools are too outdated` | 这是 Homebrew 对编译工具版本的检查，与本项目无关。在「系统设置 → 软件更新」里更新 Command Line Tools；没有更新时执行 `sudo rm -rf /Library/Developer/CommandLineTools && xcode-select --install`。或改用[预编译包](#预编译包) |
 | 菜单栏看不到图标 | 见[菜单栏图标不可见时](#菜单栏图标不可见时) |
 | 菜单栏应用图标在 Finder 中为空白 | 重新执行 `./build.sh`（会清理扩展属性并签名），再 `killall Dock Finder` |
 

@@ -1,7 +1,5 @@
-# Homebrew formula 模板：从源码编译（release 流程会填入 url / sha256，产物是 release 里的 vdscreen.rb）
-# 放进 tap 仓库（lyonDan/homebrew-tap 的 Formula/ 目录）后：brew install lyonDan/tap/vdscreen
 class Vdscreen < Formula
-  desc "用私有 CGVirtualDisplay API 创建 HiDPI 虚拟显示器（CLI + 菜单栏 App）"
+  desc "Create HiDPI virtual displays on macOS (CLI and menu bar app)"
   homepage "https://github.com/lyonDan/vdscreen"
   url "__URL__"
   sha256 "__SHA256__"
