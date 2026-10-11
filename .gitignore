@@ -1,3 +1,4 @@
 vdscreen-core
+VDScreenBar.app/
 *.o
 .DS_Store

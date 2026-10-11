@@ -5,6 +5,9 @@
 #   vdscreen off                 关闭
 #   vdscreen restart             重启
 #   vdscreen status              查看状态（不带参数时的默认动作）
+#   vdscreen presets             列出预设分辨率
+#   vdscreen preset <名字>       按预设启动（如: vdscreen preset "iPad mini 7"）
+#   vdscreen state               机器可读状态: "on <名字> <宽x高>" 或 "off"
 #   vdscreen config              查看配置文件
 #   vdscreen set size 1133x744   改默认尺寸
 #   vdscreen set name "iPad mini 7"
@@ -18,6 +21,7 @@ set -euo pipefail
 
 CONFIG_DIR="$HOME/.config/vdscreen"
 CONFIG="$CONFIG_DIR/config"
+PRESETS="$CONFIG_DIR/presets"
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # 默认值；~/.config/vdscreen/config 里的同名变量会覆盖它们。
@@ -36,6 +40,49 @@ DOMAIN="gui/$(id -u)"
 say()  { print -r -- "$@" }
 die()  { print -ru2 -- "错误: $@"; exit 1; }
 loaded() { launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1; }
+
+current_pid() {
+  launchctl print "$DOMAIN/$LABEL" 2>/dev/null | awk '/^[[:space:]]*pid = /{print $3; exit}'
+}
+
+ensure_presets() {
+  mkdir -p "$CONFIG_DIR"
+  [[ -f "$PRESETS" ]] && return
+  cat > "$PRESETS" <<'EOF'
+# vdscreen 预设：每行 "名字 = 宽x高"，数值是逻辑尺寸（程序自动按 2x 背板创建）。
+# 可自由增删改，菜单栏和命令行会立即读取，无需重新编译。
+
+# iPad（横屏，与桌面习惯一致）
+iPad mini 7                  = 1133x744
+iPad Air 11 / iPad 10-11     = 1180x820
+iPad Air 13 / iPad Pro 12.9  = 1366x1024
+iPad Pro 11 (M4)             = 1210x834
+iPad Pro 13 (M4)             = 1376x1032
+
+# iPhone（竖屏，正好铺满手机）
+iPhone 18 Pro                = 402x874
+iPhone 18 Pro Max            = 440x956
+iPhone 17 / 18 (6.3")        = 402x874
+iPhone Air                   = 420x912
+iPhone SE (3rd)              = 375x667
+
+# 通用分辨率
+1080p                        = 960x540
+1440p                        = 1280x720
+4K                           = 1920x1080
+EOF
+}
+
+preset_size() {
+  ensure_presets
+  awk -F'=' -v want="$1" '
+    /^[[:space:]]*#/ { next }
+    NF >= 2 {
+      name = $1; sub(/[[:space:]]+$/, "", name); sub(/^[[:space:]]+/, "", name)
+      size = $2; gsub(/[[:space:]]/, "", size)
+      if (name == want) { print size; exit }
+    }' "$PRESETS"
+}
 
 write_plist() {
   [[ -x "$CORE" ]] || die "找不到可执行文件 $CORE（先跑 ./build.sh，或 vdscreen install）"
@@ -67,8 +114,7 @@ show_status() {
   say "服务:      $state ($LABEL)"
   say "配置:      $SIZE  \"$NAME\""
   say "核心:      $CORE"
-  local pid=""
-  pid="$(launchctl print "$DOMAIN/$LABEL" 2>/dev/null | awk '/^[[:space:]]*pid = /{print $3; exit}')"
+  local pid; pid="$(current_pid)"
   say "进程:      ${pid:-无}"
   local info
   info="$(system_profiler SPDisplaysDataType 2>/dev/null | grep -A 3 "^        $NAME:" | head -4)"
@@ -85,6 +131,8 @@ case "${1:-status}" in
     [[ -n "${2:-}" ]] && SIZE="$2"
     [[ -n "${3:-}" ]] && NAME="$3"
     write_plist
+    : > /tmp/vdscreen.log
+    : > /tmp/vdscreen.err
     if loaded; then launchctl kickstart -k "$DOMAIN/$LABEL"; else launchctl bootstrap "$DOMAIN" "$PLIST"; fi
     sleep 3
     cat /tmp/vdscreen.log 2>/dev/null || true
@@ -100,6 +148,27 @@ case "${1:-status}" in
     "$0" on "${2:-}" "${3:-}"
     ;;
   status) show_status ;;
+  state)
+    # 机器可读：供菜单栏等程序解析
+    if [[ -n "$(current_pid)" && -f "$PLIST" ]]; then
+      local size name
+      size="$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:1" "$PLIST" 2>/dev/null || print -r -- "$SIZE")"
+      name="$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:2" "$PLIST" 2>/dev/null || print -r -- "$NAME")"
+      say "on $name $size"
+    else
+      say "off"
+    fi
+    ;;
+  presets)
+    ensure_presets
+    cat "$PRESETS"
+    ;;
+  preset)
+    [[ -n "${2:-}" ]] || die "用法: vdscreen preset <预设名>（用 vdscreen presets 查看）"
+    size="$(preset_size "$2")"
+    [[ -n "$size" ]] || die "找不到预设「$2」，可用 vdscreen presets 查看列表"
+    "$0" on "$size" "$2"
+    ;;
   config)
     mkdir -p "$CONFIG_DIR"
     [[ -f "$CONFIG" ]] || cat > "$CONFIG" <<EOF
@@ -149,7 +218,7 @@ EOF
     say "已卸载命令（保留 $CONFIG 与仓库目录）"
     ;;
   help|-h|--help)
-    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+    awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
     ;;
   *) die "未知命令: $1（试试 vdscreen help）" ;;
 esac

@@ -14,9 +14,60 @@ $ vdscreen on
 ## 快速开始
 
 ```sh
-./build.sh          # 编译出 ./vdscreen-core（需要 Xcode Command Line Tools）
-./vdscreen install  # 装到 ~/bin/vdscreen，之后任意目录可用
-vdscreen on         # 启动
+./build.sh                        # 编译核心 + 菜单栏 App（需要 Command Line Tools）
+./vdscreen install                # CLI 装到 ~/bin/vdscreen，之后任意目录可用
+cp -R VDScreenBar.app ~/Applications/ && open ~/Applications/VDScreenBar.app
+vdscreen on                       # 或者直接从菜单栏点选
+```
+
+## 菜单栏应用
+
+`VDScreenBar.app` 是一个纯菜单栏小应用（`LSUIElement`，不占 Dock、没有窗口），
+它本身只做前端，实际动作全部交给 `vdscreen` CLI，所以 CLI 和它共享同一份状态与配置。
+
+菜单内容：
+
+- 顶部显示当前状态（如「已开启：iPad mini 7　1133x744」）
+- 「关闭虚拟屏」一键关闭
+- 预设分辨率列表，当前生效的那条前面带 ✓，点一下即切换
+- 「自定义分辨率…」弹窗输入任意尺寸，例如 `1280x800`（会按 2× 创建 2560x1600 背板）
+- 「重新载入预设」「打开配置目录」
+- 菜单栏图标本身也会显示当前分辨率；关闭时显示为划掉的显示器图标
+
+想让它开机就在菜单栏里：系统设置 → 通用 → 登录项，把 `VDScreenBar.app` 加进去即可。
+
+## 预设分辨率
+
+预设存放在 `~/.config/vdscreen/presets`，纯文本，每行 `名字 = 宽x高`（逻辑尺寸）。
+首次运行会自动生成；**可自由增删改，CLI 和菜单栏立即生效，无需重新编译**。
+
+自带预设以 2026 年在售机型的真实逻辑分辨率为准（iPhone 18 系列数据取自 Wikipedia
+对应机型的屏幕参数）：
+
+| 设备 | 逻辑尺寸 | 背板 |
+| --- | --- | --- |
+| iPad mini 7 | 1133×744 | 2266×1488 |
+| iPad Air 11 / iPad 10-11 | 1180×820 | 2360×1640 |
+| iPad Air 13 / iPad Pro 12.9 | 1366×1024 | 2732×2048 |
+| iPad Pro 11 (M4) | 1210×834 | 2420×1668 |
+| iPad Pro 13 (M4) | 1376×1032 | 2752×2064 |
+| iPhone 18 Pro | 402×874 | 1206×2622 |
+| iPhone 18 Pro Max | 440×956 | 1320×2868 |
+| iPhone 17 / 18 (6.3") | 402×874 | 1206×2622 |
+| iPhone Air | 420×912 | 1260×2736 |
+| iPhone SE (3rd) | 375×667 | 750×1334 |
+| 1080p / 1440p / 4K | 960×540 / 1280×720 / 1920×1080 | — |
+
+iPad 用横屏尺寸、iPhone 用竖屏尺寸。想要另一个方向就把宽高对调。
+基础款 iPhone 18 的屏幕参数目前还没有公开条目，这里沿用 iPhone 17 的 6.3" 面板
+（402×874pt）；拿到实际数据后直接改这一行即可。
+
+命令行同样能用预设：
+
+```sh
+vdscreen presets              # 列出全部预设
+vdscreen preset "iPhone 18 Pro"
+vdscreen on 1280x800 "随意名字"   # 直接给任意尺寸
 ```
 
 ## 管理与关闭
@@ -27,6 +78,8 @@ vdscreen on         # 启动
 | 命令 | 作用 |
 | --- | --- |
 | `vdscreen status` | 查看服务状态、进程、显示器与当前配置（默认动作） |
+| `vdscreen state` | 机器可读状态（菜单栏用它刷新界面） |
+| `vdscreen presets` / `preset <名字>` | 列出 / 按预设启动 |
 | `vdscreen on` | 启动虚拟屏 |
 | `vdscreen off` | **关闭**：停掉进程并卸下 LaunchAgent（不再开机自启） |
 | `vdscreen restart` | 重启（改完配置后用它生效） |
@@ -95,7 +148,8 @@ vdscreen-core           编译产物（git 忽略）
 vdscreen.m              核心：创建虚拟显示器
 CGVirtualDisplayShim.h  私有 API 的最小声明
 vdscreen                管理 CLI（on / off / status / config / set / install / uninstall）
-build.sh                一条 clang 命令完成编译
+vdscreen-bar.swift      菜单栏应用源码
+build.sh                编译核心 + 打包 VDScreenBar.app
 ```
 
 ## 致谢
