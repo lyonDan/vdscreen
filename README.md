@@ -239,6 +239,8 @@ CGVirtualDisplayShim.h  私有 API 的最小声明
 vdscreen                管理 CLI（on / off / rotate / preset / status / config / set / install / uninstall）
 vdscreen-bar.swift      菜单栏应用源码（菜单、全局快捷键、悬浮提示、URL scheme）
 build.sh                编译核心 + 打包 VDScreenBar.app
+make-icon.swift         生成 AppIcon.icns 的脚本（仅改图标设计时才需要跑）
+AppIcon.icns            菜单栏 App 的图标
 ```
 
 ## 致谢

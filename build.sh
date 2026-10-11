@@ -11,6 +11,7 @@ APP="VDScreenBar.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp vdscreen "$APP/Contents/Resources/vdscreen"
 cp vdscreen-core "$APP/Contents/Resources/vdscreen-core"
+cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 chmod +x "$APP/Contents/Resources/vdscreen" "$APP/Contents/Resources/vdscreen-core"
 
 swiftc -O -o "$APP/Contents/MacOS/vdscreen-bar" vdscreen-bar.swift \
@@ -24,6 +25,7 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
   <key>CFBundleName</key><string>VDScreenBar</string>
   <key>CFBundleDisplayName</key><string>vdscreen</string>
   <key>CFBundleIdentifier</key><string>com.local.vdscreen.bar</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleExecutable</key><string>vdscreen-bar</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.1</string>
