@@ -140,7 +140,7 @@ case "${1:-status}" in
     ;;
   off)
     if loaded; then launchctl bootout "$DOMAIN/$LABEL"; fi
-    [[ -f "$PLIST" ]] && mv "$PLIST" "$PLIST.disabled"
+    rm -f "$PLIST"
     say "已关闭（是否开机自启：否）"
     ;;
   restart)
