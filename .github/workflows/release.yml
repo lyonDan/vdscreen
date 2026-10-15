@@ -78,7 +78,7 @@ jobs:
           rm -r dmg
           (cd dist && shasum -a 256 *.zip *.dmg > SHA256SUMS.txt && cat SHA256SUMS.txt)
 
-      - name: 生成 Homebrew formula（指向预编译包，不要求用户本机编译）
+      - name: 生成 Homebrew Formula 与 Cask
         if: github.ref_type == 'tag'
         run: |
           v="${{ steps.ver.outputs.version }}"
@@ -86,6 +86,10 @@ jobs:
           sha="$(shasum -a 256 "dist/VDScreenBar-$v-arm64.zip" | cut -d' ' -f1)"
           sed -e "s|__URL__|$url|" -e "s|__VERSION__|$v|" -e "s|__SHA256__|$sha|" \
               packaging/homebrew/vdscreen.rb > dist/vdscreen.rb
+          sed -e "s|__URL__|$url|" -e "s|__VERSION__|$v|" -e "s|__SHA256__|$sha|" \
+              packaging/homebrew/vdscreen-cask.rb > dist/vdscreen-cask.rb
+          ruby -c dist/vdscreen.rb
+          ruby -c dist/vdscreen-cask.rb
 
       - uses: actions/upload-artifact@v4
         with:
@@ -108,8 +112,9 @@ jobs:
           if [[ -z "$TAP_TOKEN" ]]; then echo "::notice::未配置 TAP_TOKEN，跳过 tap 更新"; exit 0; fi
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/lyonDan/homebrew-tap.git" tap
           mkdir -p tap/Formula && cp dist/vdscreen.rb tap/Formula/vdscreen.rb
+          mkdir -p tap/Casks && cp dist/vdscreen-cask.rb tap/Casks/vdscreen.rb
           cd tap
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Formula/vdscreen.rb
+          git add Formula/vdscreen.rb Casks/vdscreen.rb
           git diff --cached --quiet || git commit -m "vdscreen ${GITHUB_REF_NAME#v}" && git push

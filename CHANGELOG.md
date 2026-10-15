@@ -2,6 +2,15 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [1.3.2]
+
+### 新增
+- 推荐使用 Homebrew Cask 安装：App 自动装入应用程序目录，同时提供 `vdscreen` 命令行入口，升级与卸载由 Homebrew 管理。
+- 发布流程同时生成并更新 Cask 与兼容旧安装方式的 Formula。
+
+### 修复
+- CLI 通过符号链接启动时，正确定位 App 内的 `vdscreen-core`。
+
 ## [1.3.1]
 
 ### 修复

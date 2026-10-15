@@ -26,7 +26,8 @@ set -euo pipefail
 CONFIG_DIR="$HOME/.config/vdscreen"
 CONFIG="$CONFIG_DIR/config"
 PRESETS="$CONFIG_DIR/presets"
-SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Cask 的 CLI 入口是符号链接，核心与真实脚本位于同一个 Resources 目录。
+SELF_DIR="${0:A:h}"
 
 # 默认值；~/.config/vdscreen/config 里的同名变量会覆盖它们。
 # 改 LABEL 可以并存多块虚拟屏（一个 LABEL = 一个 LaunchAgent = 一块屏）。

@@ -105,5 +105,14 @@ zsh "$ROOT/vdscreen" bogus >/dev/null 2>&1;         eq "未知命令报错" 1 $?
 eq "help 有内容" 1 "$(zsh "$ROOT/vdscreen" help | grep -c 'vdscreen on')"
 eq "presets 命令可用" 1 "$(zsh "$ROOT/vdscreen" presets | grep -c 'iPhone 18 Pro  ')"
 
+# ── Cask 的符号链接入口：核心路径应指向 App 内，而非 Homebrew bin ──
+mkdir -p "$TMP/Applications/VDScreenBar.app/Contents/Resources" "$TMP/bin" "$TMP/link-home"
+cp "$ROOT/vdscreen" "$TMP/Applications/VDScreenBar.app/Contents/Resources/vdscreen"
+ln -s "$TMP/Applications/VDScreenBar.app/Contents/Resources/vdscreen" "$TMP/bin/vdscreen"
+HOME="$TMP/link-home" zsh "$TMP/bin/vdscreen" config >/dev/null 2>&1
+eq "符号链接入口使用 App 内核心" \
+  "CORE=\"${TMP:A}/Applications/VDScreenBar.app/Contents/Resources/vdscreen-core\"" \
+  "$(head -1 "$TMP/link-home/.config/vdscreen/config")"
+
 print -r -- "单元测试: 通过 $pass, 失败 $fail"
 (( fail == 0 ))

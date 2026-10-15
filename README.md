@@ -27,17 +27,35 @@
 ### Homebrew（推荐）
 
 ```sh
-brew install lyonDan/tap/vdscreen
+brew install --cask lyonDan/tap/vdscreen
+open /Applications/VDScreenBar.app
 ```
 
-formula 直接安装 Release 的预编译包（Developer ID 签名 + Apple 公证），**不在本机编译**，
-因此不需要 Xcode / Command Line Tools。命令行工具装到 `$(brew --prefix)/bin/vdscreen`。
-菜单栏应用装在 formula 的目录里，复制出来即可使用：
+Cask 直接安装 Release 的预编译包（Developer ID 签名 + Apple 公证），**不在本机编译**，
+因此不需要 Xcode / Command Line Tools。App 自动安装到 `/Applications/VDScreenBar.app`，
+命令行入口自动链接到 `$(brew --prefix)/bin/vdscreen`，无需手动复制。升级使用：
 
 ```sh
-cp -R "$(brew --prefix vdscreen)/VDScreenBar.app" ~/Applications/
-open ~/Applications/VDScreenBar.app
+brew upgrade --cask lyonDan/tap/vdscreen
 ```
+
+如果通过 `--appdir` 自定义应用目录，请相应调整打开 App 的路径。
+
+#### 从旧 Formula 迁移
+
+已使用 `brew install lyonDan/tap/vdscreen` 的用户，先关闭虚拟屏、卸载旧 Formula，再安装 Cask。
+配置与预设会保留；最后更新旧配置中记录的核心路径：
+
+```sh
+vdscreen off
+brew uninstall --formula lyonDan/tap/vdscreen
+brew install --cask lyonDan/tap/vdscreen
+vdscreen set core /Applications/VDScreenBar.app/Contents/Resources/vdscreen-core
+open /Applications/VDScreenBar.app
+```
+
+如果曾手动复制 App 到 `~/Applications/`，可在确认新版可用后删除旧副本，避免打开旧版本。
+旧 Formula 继续提供兼容安装，但推荐使用 Cask，以便统一管理 App 和命令行工具。
 
 ### 从源码构建
 
@@ -188,18 +206,30 @@ launchctl print gui/$(id -u)/io.github.lyondan.vdscreen
 | 切换到某个尺寸后画面发软 | 该尺寸系统不提供 HiDPI 模式，输出里会标注「非 HiDPI」（画布过小或过窄时容易发生）；换更大的尺寸 |
 | 提示「核心没有在预期时间内就绪」 | 查看 `/tmp/vdscreen.err`；同一身份的虚拟屏已在运行也会导致创建失败 |
 | 某个快捷键无反应 | 在 `/tmp/vdscreen-bar.log` 中搜「注册失败」，说明组合被其他程序占用 |
-| `brew install` 报 `Your Command Line Tools are too outdated` | 现在的 formula 直接装预编译包，正常不会触发编译。若是在装其他 formula / 依赖时遇到：这是 Homebrew 对编译工具版本的检查，与本项目无关。在「系统设置 → 软件更新」里更新 Command Line Tools；没有更新时执行 `sudo rm -rf /Library/Developer/CommandLineTools && xcode-select --install` |
+| `brew install` 报 `Your Command Line Tools are too outdated` | 现在的 Cask 与 Formula 均直接装预编译包，正常不会触发编译。若是在装其他 formula / 依赖时遇到：这是 Homebrew 对编译工具版本的检查，与本项目无关。在「系统设置 → 软件更新」里更新 Command Line Tools；没有更新时执行 `sudo rm -rf /Library/Developer/CommandLineTools && xcode-select --install` |
 | 菜单栏看不到图标 | 见[菜单栏图标不可见时](#菜单栏图标不可见时) |
 | 菜单栏应用图标在 Finder 中为空白 | 重新执行 `./build.sh`（会清理扩展属性并签名），再 `killall Dock Finder` |
 
 ## 卸载
 
+通过 Homebrew Cask 安装：
+
 ```sh
-vdscreen uninstall                              # 关闭虚拟屏并移除 ~/bin 下的 vdscreen
-rm -rf ~/Applications/VDScreenBar.app           # 菜单栏应用（如加入过登录项，也请移除）
-rm -rf ~/.config/vdscreen                       # 配置与预设（可选）
-brew uninstall vdscreen                         # 若通过 Homebrew 安装
+vdscreen off
+brew uninstall --cask lyonDan/tap/vdscreen
 ```
+
+卸载会移除 App 和 Homebrew 的命令行入口，保留配置与预设。
+旧 Formula 安装使用 `brew uninstall --formula lyonDan/tap/vdscreen`。
+
+从源码或一键脚本安装：
+
+```sh
+vdscreen uninstall                            # 关闭虚拟屏并移除 ~/bin 下的工具
+rm -rf ~/Applications/VDScreenBar.app         # 如加入过登录项，也请移除
+```
+
+配置与预设可按需删除：`rm -rf ~/.config/vdscreen`。
 
 ## 工作原理
 
@@ -259,7 +289,7 @@ tests/integration.sh --yes --all            # 加上全部预设逐条验证，�
 ### 发布
 
 推送形如 `v1.2.0` 的 tag，GitHub Actions 会构建并创建 Release，附带 `VDScreenBar-<版本>-arm64.zip`、
-`SHA256SUMS.txt`，以及已填好 url 与 sha256 的 Homebrew formula（`vdscreen.rb`）。
+`SHA256SUMS.txt`，以及已填好 url 与 sha256 的 Homebrew Formula（`vdscreen.rb`）和 Cask（`vdscreen-cask.rb`）。
 
 ```sh
 git tag v1.2.0 && git push origin v1.2.0
@@ -277,7 +307,7 @@ install.sh                  一键安装脚本（从 Release 下载预编译包�
 make-icon.swift             生成 AppIcon.icns（仅修改图标设计时需要运行）
 AppIcon.icns                应用图标
 tests/                      单元测试与集成测试
-packaging/homebrew/         Homebrew formula 模板
+packaging/homebrew/         Homebrew Formula 与 Cask 模板
 .github/workflows/          CI 与发布流程
 .githooks/                  提交前钩子
 ```
