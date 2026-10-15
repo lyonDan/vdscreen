@@ -2,6 +2,12 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [1.3.1]
+
+### 修复
+- Homebrew 安装时恢复被解压器去掉的 `VDScreenBar.app` 顶层目录，修复找不到 CLI 资源的错误。
+- 安装 CLI 时复制 App 内的资源，保留菜单栏 App 的完整内容与代码签名。
+
 ## [1.3.0]
 
 按实际使用需求精简为三个核心能力：**预设/自定义分辨率、横竖切换、主屏切换**。

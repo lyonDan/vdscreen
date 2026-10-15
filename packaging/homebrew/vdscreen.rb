@@ -12,7 +12,15 @@ class Vdscreen < Formula
   def install
     # 直接安装 Release 预编译包（Developer ID 签名 + Apple 公证），不做本机编译
     app = "VDScreenBar.app"
-    libexec.install "#{app}/Contents/Resources/vdscreen", "#{app}/Contents/Resources/vdscreen-core"
+    # Homebrew 解压时会去掉 zip 唯一的顶层目录，恢复 App bundle 的目录结构。
+    if File.directory?("Contents")
+      mkdir app
+      mv "Contents", app
+    end
+    # 复制而非移走资源，保留 App 的签名完整性。
+    libexec.mkpath
+    cp "#{app}/Contents/Resources/vdscreen", libexec
+    cp "#{app}/Contents/Resources/vdscreen-core", libexec
     # 用 opt 路径而非带版本号的 Cellar 路径：LaunchAgent 会记下核心路径，升级后不能失效
     (bin/"vdscreen").write <<~SH
       #!/bin/sh
