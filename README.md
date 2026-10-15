@@ -3,24 +3,21 @@
 [![CI](https://github.com/lyonDan/vdscreen/actions/workflows/ci.yml/badge.svg)](https://github.com/lyonDan/vdscreen/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-在 macOS 上创建 **HiDPI 虚拟显示器**的命令行工具与菜单栏应用。适用于没有物理显示器的 Mac（远程桌面、
-串流、无头主机），或需要一块指定分辨率的额外屏幕。
+在 macOS 上创建 **HiDPI 虚拟显示器**的命令行工具与菜单栏应用，适用于远程桌面、串流、无头主机，
+或需要指定分辨率的额外屏幕。
 
-- 以 iPad、iPhone 的真实逻辑分辨率预设，一条命令切换；也可自定义分辨率
-- 真 HiDPI：背板为逻辑分辨率的 2 倍，系统无法提供时自动退回 1:1，并如实报告
-- 横竖切换（方向锁定，换预设后保持）、一键切换主屏
-- 菜单栏应用，另有全局快捷键、URL scheme，菜单栏图标被挤掉时仍可操作
-- 无第三方依赖，只需系统自带的编译工具
-
-> **注意**：本项目依赖 Apple 私有 API `CGVirtualDisplay`，不受兼容性承诺保护，系统更新可能使其失效。
-> 详见[已知限制](#已知限制)。
+- 内置 iPad、iPhone 与常用分辨率预设，也可自定义逻辑尺寸
+- 支持 2× HiDPI；系统不支持时自动退回 1:1，并报告实际模式
+- 横竖方向锁定、一键切换主屏
+- 支持菜单栏、全局快捷键与 URL scheme
 
 ## 系统要求
 
-- macOS 13 或更高（最低部署目标为 13.0；仅在 macOS 27、Apple Silicon 上测试过）
-- Apple Silicon（预编译包与 Homebrew 安装均为 arm64；Intel Mac 请从源码构建）
-- 从源码构建需要 Xcode **Command Line Tools**：`xcode-select --install`。不需要完整的 Xcode。
-  Homebrew 安装与预编译包**不需要**编译工具
+- macOS 13 或更高；目前仅在 macOS 27 / Apple Silicon 上测试
+- 预编译包仅支持 Apple Silicon；Intel Mac 需从源码构建
+- 源码构建需要 Xcode Command Line Tools：`xcode-select --install`；预编译安装无需编译工具
+
+> 本项目使用 Apple 私有 API `CGVirtualDisplay`，系统更新可能影响兼容性。
 
 ## 安装
 
@@ -31,290 +28,155 @@ brew install --cask lyonDan/tap/vdscreen
 open /Applications/VDScreenBar.app
 ```
 
-Cask 直接安装 Release 的预编译包（Developer ID 签名 + Apple 公证），**不在本机编译**，
-因此不需要 Xcode / Command Line Tools。App 自动安装到 `/Applications/VDScreenBar.app`，
-命令行入口自动链接到 `$(brew --prefix)/bin/vdscreen`，无需手动复制。升级使用：
+安装已签名并经 Apple 公证的预编译包，App 位于 `/Applications/VDScreenBar.app`，
+命令行工具自动链接到 Homebrew 的 `bin` 目录。使用 `--appdir` 时，请相应调整 App 路径。
 
-```sh
-brew upgrade --cask lyonDan/tap/vdscreen
-```
+升级：`brew upgrade --cask lyonDan/tap/vdscreen`。
 
-如果通过 `--appdir` 自定义应用目录，请相应调整打开 App 的路径。
-
-#### 从旧 Formula 迁移
-
-已使用 `brew install lyonDan/tap/vdscreen` 的用户，先关闭虚拟屏、卸载旧 Formula，再安装 Cask。
-配置与预设会保留；最后更新旧配置中记录的核心路径：
-
-```sh
-vdscreen off
-brew uninstall --formula lyonDan/tap/vdscreen
-brew install --cask lyonDan/tap/vdscreen
-vdscreen set core /Applications/VDScreenBar.app/Contents/Resources/vdscreen-core
-open /Applications/VDScreenBar.app
-```
-
-如果曾手动复制 App 到 `~/Applications/`，可在确认新版可用后删除旧副本，避免打开旧版本。
-旧 Formula 继续提供兼容安装，但推荐使用 Cask，以便统一管理 App 和命令行工具。
-
-### 从源码构建
-
-```sh
-git clone https://github.com/lyonDan/vdscreen.git && cd vdscreen
-./build.sh                  # 生成 vdscreen-core 与 VDScreenBar.app
-./vdscreen install          # 命令行工具安装到 ~/bin
-cp -R VDScreenBar.app ~/Applications/
-```
-
-### 一键安装（预编译包）
+### 预编译包
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/lyonDan/vdscreen/main/install.sh | zsh
 ```
 
-下载最新 Release 的预编译包（Developer ID 签名 + Apple 公证，Gatekeeper 校验通过才安装），
-装好菜单栏 App（`~/Applications/VDScreenBar.app`）与命令行工具（`~/bin/vdscreen`）。
+脚本下载最新 Release，安装 App 到 `~/Applications/VDScreenBar.app`、命令行工具到 `~/bin/vdscreen`。
 
-也可手动安装：[Releases](https://github.com/lyonDan/vdscreen/releases) 提供 `VDScreenBar-<版本>.dmg`
-（打开后拖入 Applications）与 `VDScreenBar-<版本>-arm64.zip`（仅 Apple Silicon；Intel Mac 请从源码构建）。
-完整性校验可对照 Release 附件中的 `SHA256SUMS.txt`。
+也可从 [Releases](https://github.com/lyonDan/vdscreen/releases) 下载 DMG 或 arm64 ZIP；
+完整性校验见附件 `SHA256SUMS.txt`。
+
+### 从源码构建
+
+```sh
+git clone https://github.com/lyonDan/vdscreen.git
+cd vdscreen
+./build.sh
+./vdscreen install          # 命令行工具安装到 ~/bin
+mkdir -p ~/Applications
+cp -R VDScreenBar.app ~/Applications/
+open ~/Applications/VDScreenBar.app
+```
+
+源码或脚本安装后，若找不到 `vdscreen` 命令，请将 `~/bin` 加入 `PATH`。
 
 ## 快速开始
 
 ```sh
-vdscreen on                          # 按默认配置开启（iPad mini 7，1133×744）
-vdscreen preset "iPhone 18 Pro"      # 切换到预设
-vdscreen orientation 竖屏            # 横竖切换：锁定竖屏（换预设后保持）
-vdscreen status                      # 查看状态
-vdscreen off                         # 关闭
+vdscreen on                          # 默认开启 iPad mini 7，1133×744
+vdscreen preset "iPhone 18 Pro"       # 切换预设
+vdscreen on 1920x1080                 # 自定义逻辑尺寸
+vdscreen orientation 竖屏             # 锁定竖屏，换预设后保持
+vdscreen main                        # 虚拟屏与第一个其他显示器之间切换主屏
+vdscreen status                      # 查看状态与实际 HiDPI 模式
+vdscreen off                         # 关闭，并取消虚拟屏随登录自启
 ```
 
-```
-$ vdscreen preset "iPad mini 7"
-已就绪："iPad mini 7"  displayID=67  UI 1133x744  背板 2266x1488  HiDPI
-  实际: 背板 2266x1488 / 逻辑 1133x744 —— HiDPI
-```
+`on` 开启后由 launchd 托管，无需保持终端打开。`orientation auto` 取消方向锁定，跟随预设方向。
 
 ## 命令行参考
 
 | 命令 | 说明 |
 | --- | --- |
-| `vdscreen on [宽x高] [名字]` | 开启，可临时指定逻辑尺寸与显示器名字；已开启时即切换 |
-| `vdscreen off` | 关闭，并卸下 LaunchAgent（之后不再随登录自启） |
+| `vdscreen on [宽x高] [名字]` | 开启或切换虚拟屏，可临时指定逻辑尺寸与名字 |
+| `vdscreen off` | 关闭并移除 LaunchAgent |
 | `vdscreen restart` | 重启 |
-| `vdscreen status` | 服务、进程、显示器、当前尺寸（默认命令） |
-| `vdscreen state` | 机器可读：`on <名字> <宽x高>` 或 `off` |
-| `vdscreen presets` | 列出预设 |
+| `vdscreen status` | 查看服务、显示器与当前尺寸（默认命令） |
+| `vdscreen state` | 机器可读状态：`on <名字> <宽x高>` 或 `off` |
+| `vdscreen presets` | 列出全部预设及尺寸 |
 | `vdscreen preset <名字>` | 按预设开启 |
-| `vdscreen orientation [横屏\|竖屏\|auto]` | 横竖切换：选定后换预设/分辨率也保持该方向（勾选项）；`auto` 跟随预设 |
-| `vdscreen main` | 一键切换主屏：虚拟屏 ↔ 第一个其他显示器（见[主屏切换](#主屏切换)） |
+| `vdscreen orientation [横屏\|竖屏\|auto]` | 查看或设置方向锁定 |
+| `vdscreen main` | 切换主屏，分辨率不变 |
 | `vdscreen config` | 查看配置 |
-| `vdscreen set <size\|name\|core> <值>` | 修改默认尺寸 / 名字 / 核心路径 |
-| `vdscreen install` / `uninstall` | 安装 / 卸载 `~/bin/vdscreen` |
+| `vdscreen set <size\|name\|core> <值>` | 修改默认尺寸、名字或核心路径 |
+| `vdscreen install` / `uninstall` | 安装 / 卸载 `~/bin/vdscreen`；卸载时同时关闭虚拟屏 |
 
-`vdscreen on` 开启后由 launchd 托管，跨终端、跨登录存活；`off` 会移除 LaunchAgent，关闭后不会自动回来。
+## 菜单栏与快捷键
 
-## 菜单栏应用
+`VDScreenBar.app` 与命令行共享状态和配置，提供开关、预设、自定义分辨率、横竖切换、主屏切换，
+以及「在 Dock 显示图标」「登录时自动启动」选项。
 
-`VDScreenBar.app` 是纯菜单栏应用（`LSUIElement`，默认没有 Dock 图标和窗口）。它只是 `vdscreen` 命令行的前端，
-与命令行共享同一份状态和配置。菜单包含：当前状态、开关、切换为主屏、横竖切换子菜单（跟随预设 / 横屏 / 竖屏勾选）、
-预设列表（当前项带 ✓）、自定义分辨率（宽、高分开填）、重新载入预设、打开配置目录，
-以及「在 Dock 显示图标」「登录时自动启动」两个开关。
-
-### 菜单栏图标不可见时
-
-竖屏虚拟屏的逻辑宽度很小，macOS 对放不下的菜单栏图标是直接隐藏。因此除菜单栏图标外，还提供下列独立入口：
-
-| 入口 | 用法 |
+| 快捷键 | 操作 |
 | --- | --- |
-| 全局快捷键 | `⌥⌘0` 开/关 · `⌥⌘R` 横竖切换 · `⌥⌘M` 切换主屏 · `⌥⌘1`…`⌥⌘9` 切到第 1…9 条预设 · `⌃⌥⌘V` 在鼠标处弹出完整菜单 |
-| 悬浮提示 | 快捷键操作后，屏幕下方显示结果，如「✓ iPad mini 7 · 1133x744 · 横屏 · HiDPI」 |
-| URL scheme | `open vdscreen://orientation/竖屏`，见下 |
-| Dock 图标 | 在菜单中勾选「在 Dock 显示图标」；点击或右键均可弹出菜单 |
-| 重新打开应用 | 从 Spotlight / 启动台再次打开，会在鼠标处弹出菜单 |
-| 命令行 | `vdscreen orientation 竖屏`；远程时可通过 SSH 执行 |
+| `⌥⌘0` | 开 / 关 |
+| `⌥⌘R` | 横竖切换 |
+| `⌥⌘M` | 切换主屏 |
+| `⌥⌘1`…`⌥⌘9` | 切换到预设文件中的第 1…9 条预设 |
+| `⌃⌥⌘V` | 在鼠标处弹出完整菜单 |
 
-快捷键通过 Carbon `RegisterEventHotKey` 注册，**不需要辅助功能权限**。若某个组合已被其他程序占用，
-会在日志中记录「注册失败」（见[故障排查](#故障排查)）。`⌥⌘1`…`⌥⌘9` 对应预设文件的行序。
+快捷键无需辅助功能权限，操作后会显示结果提示。竖屏等较窄的主屏可能让菜单栏图标被隐藏，
+此时可用快捷键、Dock 图标，或从 Spotlight 重新打开应用来弹出菜单。
 
-**横竖切换**（`vdscreen orientation`，菜单「横竖切换」子菜单，`⌥⌘R` 快速切换）：勾选横屏或竖屏后，
-换预设、换分辨率都保持所选方向（比如锁定竖屏后，横屏的 iPad 预设也会以竖屏摆向创建）；
-`auto` 取消锁定，方向跟随预设。对正在运行的虚拟屏设置时会立即按所选方向重摆。
+也可通过 `open 'vdscreen://<命令>'` 调用应用，支持 `on`、`off`、`toggle`、`main`、`menu`、
+`orientation/<横屏|竖屏|auto>`、`preset/<名字>`、`size/<宽x高>`。URL 需在 Mac 上执行。
 
-**URL scheme**：`vdscreen://<命令>`，命令为 `on`、`off`、`toggle`、`main`、`menu`、
-`orientation/<横屏|竖屏|auto>`、`preset/<名字>`、`size/<宽x高>`（旧写法 `rotate` 等效于横竖切换）。
-仅在本机可用（脚本、SSH、Mac 上的快捷指令）；
-iOS 的快捷指令无法打开 Mac 的自定义 scheme。任何网页都可以请求打开 `vdscreen://…`，浏览器会先确认；
-不需要此功能可删去 `build.sh` 里 `Info.plist` 的 `CFBundleURLTypes`。
+## 预设与配置
 
-## 预设
+预设保存在 `~/.config/vdscreen/presets`，首次运行自动生成，每行格式为 `名字 = 宽x高`：
 
-预设保存在 `~/.config/vdscreen/presets`，纯文本，每行 `名字 = 宽x高`（逻辑尺寸）。首次运行自动生成；
-增删修改后命令行与菜单栏立即生效（菜单栏可用「重新载入预设」）。
+```text
+iPad mini 7 = 1133x744
+我的屏幕 = 1600x900
+```
 
-| 预设 | 逻辑尺寸 | 背板 |
-| --- | --- | --- |
-| iPad mini 7 | 1133×744 | 2266×1488 |
-| iPad Air 11 / iPad 10-11 | 1180×820 | 2360×1640 |
-| iPad Air 13 / iPad Pro 12.9 | 1366×1024 | 2732×2048 |
-| iPad Pro 11 (M4) | 1210×834 | 2420×1668 |
-| iPad Pro 13 (M4) | 1376×1032 | 2752×2064 |
-| iPhone 18 Pro | 804×1748 | 1608×3496 |
-| iPhone 18 Pro Max | 880×1912 | 1760×3824 |
-| iPhone 17 / 18 (6.3") | 804×1748 | 1608×3496 |
-| 1600×900 | 1600×900 | 3200×1800 |
-| 1280×720 | 1280×720 | 2560×1440 |
-| 1920×1080 | 1920×1080 | 3840×2160 |
-
-iPad 预设为横屏，iPhone 预设为竖屏；未用到的机型预设可自行从文件里删掉，
-想要的分辨率照 `名字 = 宽x高` 加一行即可，或用 `vdscreen on <宽x高>` 临时指定。
-
-iPhone 预设使用的是手机的**像素尺寸**（如 804×1748），而不是点尺寸（402×874）。点尺寸的画布只有 402 点宽，
-普通 Mac 窗口放不下，且过小的虚拟屏无法获得 HiDPI。基础款 iPhone 18 暂无公开的屏幕参数，沿用 iPhone 17 的 6.3" 面板。
-
-## 主屏切换
-
-远程连接只看到虚拟屏时，其他屏上已打开的窗口够不着。`vdscreen main` 一键把虚拟屏
-**切换为主屏**：菜单栏、Dock 跟着移过来（分辨率不变），已打开的窗口原样可见、可操作；
-再触发一次则切回第一个其他在线显示器。入口：命令行、菜单项「切换为主屏」、全局快捷键
-`⌥⌘M`、`vdscreen://main`。
-
-主屏 = 显示器布局中位于 (0,0) 的那块屏（系统即此规则，本项目通过调整布局实现）。
-注意：窄的竖屏虚拟屏当主屏时，菜单栏可能被挤爆 —— 这正是上面备用入口存在的意义。
-
-## 配置与文件位置
+使用 `vdscreen presets` 查看完整列表。修改后命令行立即生效，菜单栏可点击「重新载入预设」。
+iPad 预设默认横屏，iPhone 默认竖屏；iPhone 使用像素尺寸作为逻辑画布，以容纳 Mac 窗口并支持 HiDPI。
 
 | 路径 | 说明 |
 | --- | --- |
-| `~/.config/vdscreen/config` | 默认值：`LABEL`、`CORE`、`NAME`、`SIZE`（shell 变量，可手工编辑） |
-| `~/.config/vdscreen/presets` | 预设 |
-| `~/Library/LaunchAgents/io.github.lyondan.vdscreen.plist` | 开启期间的 LaunchAgent（`LABEL` 可改，用于并存多块虚拟屏；1.1.0 及更早版本使用 `com.local.vdscreen.ipadmini7`，升级后沿用至下次 `vdscreen off`） |
-| `/tmp/vdscreen.log`、`/tmp/vdscreen.err` | 核心的标准输出 / 错误 |
-| `/tmp/vdscreen-bar.log` | 菜单栏应用的动作、CLI 回显、快捷键触发与注册失败 |
+| `~/.config/vdscreen/config` | 默认配置：`LABEL`、`CORE`、`NAME`、`SIZE` 等 shell 变量 |
+| `~/.config/vdscreen/presets` | 自定义预设 |
+| `~/Library/LaunchAgents/io.github.lyondan.vdscreen.plist` | 虚拟屏的 LaunchAgent |
+| `/tmp/vdscreen.log`、`/tmp/vdscreen.err` | 核心输出与错误日志 |
+| `/tmp/vdscreen-bar.log` | 菜单栏应用与快捷键日志 |
 
-## 故障排查
+## 故障排查与限制
 
-```sh
-vdscreen status                                     # 服务、进程、显示器
-cat /tmp/vdscreen.log /tmp/vdscreen.err             # 核心输出
-tail -30 /tmp/vdscreen-bar.log                      # 菜单栏应用日志
-launchctl print gui/$(id -u)/io.github.lyondan.vdscreen
-```
+先运行 `vdscreen status` 查看状态，再检查上述日志。
 
 | 现象 | 处理 |
 | --- | --- |
-| 切换到某个尺寸后画面发软 | 该尺寸系统不提供 HiDPI 模式，输出里会标注「非 HiDPI」（画布过小或过窄时容易发生）；换更大的尺寸 |
-| 提示「核心没有在预期时间内就绪」 | 查看 `/tmp/vdscreen.err`；同一身份的虚拟屏已在运行也会导致创建失败 |
-| 某个快捷键无反应 | 在 `/tmp/vdscreen-bar.log` 中搜「注册失败」，说明组合被其他程序占用 |
-| `brew install` 报 `Your Command Line Tools are too outdated` | 现在的 Cask 与 Formula 均直接装预编译包，正常不会触发编译。若是在装其他 formula / 依赖时遇到：这是 Homebrew 对编译工具版本的检查，与本项目无关。在「系统设置 → 软件更新」里更新 Command Line Tools；没有更新时执行 `sudo rm -rf /Library/Developer/CommandLineTools && xcode-select --install` |
-| 菜单栏看不到图标 | 见[菜单栏图标不可见时](#菜单栏图标不可见时) |
-| 菜单栏应用图标在 Finder 中为空白 | 重新执行 `./build.sh`（会清理扩展属性并签名），再 `killall Dock Finder` |
+| 画面发软，显示「非 HiDPI」 | 系统未提供该尺寸的 HiDPI 模式，尝试更大的尺寸 |
+| 提示「核心没有在预期时间内就绪」 | 查看 `/tmp/vdscreen.err`，检查是否已有同一身份的虚拟屏运行 |
+| 快捷键无反应 | 在 `/tmp/vdscreen-bar.log` 中查找「注册失败」，检查组合是否被占用 |
+| 菜单栏看不到图标 | 使用 `⌃⌥⌘V` 或重新打开应用弹出菜单 |
+
+- 高度小于 480 的尺寸会按宽高比放大到高 480。
+- 更换尺寸会被系统视为新显示器，窗口不会自动迁移；同一尺寸反复切换可保留布局。
+- 同一时刻不能创建两块身份完全相同的虚拟屏。
+- 仅负责创建和控制虚拟屏，不提供远程串流、窗口布局或亮度控制。
 
 ## 卸载
 
-通过 Homebrew Cask 安装：
+Homebrew 安装：
 
 ```sh
 vdscreen off
 brew uninstall --cask lyonDan/tap/vdscreen
 ```
 
-卸载会移除 App 和 Homebrew 的命令行入口，保留配置与预设。
-旧 Formula 安装使用 `brew uninstall --formula lyonDan/tap/vdscreen`。
-
-从源码或一键脚本安装：
+源码或脚本安装：
 
 ```sh
-vdscreen uninstall                            # 关闭虚拟屏并移除 ~/bin 下的工具
-rm -rf ~/Applications/VDScreenBar.app         # 如加入过登录项，也请移除
+vdscreen uninstall
+rm -rf ~/Applications/VDScreenBar.app
 ```
 
-配置与预设可按需删除：`rm -rf ~/.config/vdscreen`。
-
-## 工作原理
-
-核心 `vdscreen-core`（Objective-C）通过 `CGVirtualDisplay` 创建虚拟显示器，进程存活期间显示器存在，
-退出即移除；由 LaunchAgent 托管其生命周期。要让 macOS 提供 HiDPI 模式，需同时满足：
-
-1. `maxPixelsWide/High` = 逻辑尺寸 × 2
-2. `sizeInMillimeters` = 逻辑尺寸 × 0.254（按约 100 DPI 折算，**不是**真实物理尺寸）；
-   按真实尺寸填写时，系统会把逻辑尺寸当作 1:1 的原生分辨率，HiDPI 模式不会出现
-3. `modes` 同时声明逻辑模式与其 2× 模式
-4. `hiDPI = 1`，且 vendor / product / serial 组合唯一
-
-满足以上仍只是「申请」。创建后核心会读回实际模式：先尝试显式切换到 HiDPI 变体，系统确实没有时才重建为 1:1，
-保证界面比例正确。
-
-**显示器身份** = 名字 + 尺寸 + 是否 HiDPI（编码在 `serial` 中）。macOS 会按身份记住上次使用的模式；
-若某个身份曾以非 HiDPI 使用，之后它的模式表里就不再提供 HiDPI 变体。让尺寸与 HiDPI 标志参与身份，
-可避免不同尺寸互相污染。代价是更换尺寸会被系统视为新显示器，窗口不会自动迁移；同一尺寸反复切换则身份不变，窗口布局得以保留。
-
-macOS 不接受高度小于 480 的显示器，此类尺寸（如手机横屏 874×402）会按宽高比放大到高 480；横竖切换以最初
-请求的尺寸为准，因此连续两次切换可原路返回。
-
-## 已知限制
-
-- **私有 API**：`CGVirtualDisplay` 不在 Apple SDK 的兼容性承诺内，系统更新可能使其失效，也无法上架 App Store。
-  同类工具（BetterDisplay、vdisplay、DeskPad 等）建立在同一 API 上，风险相同。
-- **平台**：仅在 macOS 27 / Apple Silicon 上测试；预编译包仅含 arm64。
-- 同一时刻不能存在两块身份完全相同的虚拟屏。
-- 只负责「建屏 + 定分辨率」，不含多配置档、窗口布局、DDC 亮度等。
+如启用过「登录时自动启动」，请先关闭。配置与预设默认保留，可按需删除：`rm -rf ~/.config/vdscreen`。
 
 ## 开发
 
-### 构建
-
 ```sh
-./build.sh                                  # 核心 + 菜单栏应用
-VERSION=1.2.0 ./build.sh                    # 指定写入 Info.plist 的版本号
-SIGN_IDENTITY="Developer ID Application: …" ./build.sh    # 使用证书签名（默认 ad-hoc）
+./build.sh                                 # 编译核心与菜单栏 App，默认 ad-hoc 签名
+tests/unit.sh                              # 单元测试，不操作真实显示器
+tests/integration.sh --yes                 # 集成测试，需图形会话并操作虚拟屏
+tests/integration.sh --yes --all           # 额外验证全部预设
 ```
 
-### 测试
-
-```sh
-tests/unit.sh                               # 单元测试，不碰显示器，数秒完成
-tests/integration.sh --yes                  # 集成测试：两种分辨率×横竖来回，约 1 分钟
-tests/integration.sh --yes --all            # 加上全部预设逐条验证，约 3 分钟
-```
-
-- **单元测试**覆盖命令行的纯逻辑（尺寸归一化、方向锁定、参数解析、plist 读写、预设文件）和不碰显示器的命令；
-  在隔离的 `HOME` 与不存在的 launchd 标签下运行，不会影响真实环境。CI 与提交前钩子都会运行它。
-  启用提交钩子：`git config core.hooksPath .githooks`
-- **集成测试**验证两种分辨率 × 横竖来回、方向锁定换尺寸后保持、低于高度下限的尺寸（约 1 分钟）；
-  `--all` 时逐条验证全部预设的尺寸与 HiDPI，用于确认某个 macOS 版本上行为是否仍然成立（macOS 升级后建议跑一次）。
-  需要图形会话，因此不在 CI 中运行。
-- 菜单栏应用（Swift）目前没有自动化测试。
-
-### 发布
-
-推送形如 `v1.2.0` 的 tag，GitHub Actions 会构建并创建 Release，附带 `VDScreenBar-<版本>-arm64.zip`、
-`SHA256SUMS.txt`，以及已填好 url 与 sha256 的 Homebrew Formula（`vdscreen.rb`）和 Cask（`vdscreen-cask.rb`）。
-
-```sh
-git tag v1.2.0 && git push origin v1.2.0
-```
-
-### 目录结构
-
-```
-vdscreen.m                  核心：创建虚拟显示器
-CGVirtualDisplayShim.h      私有 API 的最小声明
-vdscreen                    管理命令行（zsh）
-vdscreen-bar.swift          菜单栏应用（菜单、全局快捷键、悬浮提示、URL scheme）
-build.sh                    构建核心并打包 VDScreenBar.app
-install.sh                  一键安装脚本（从 Release 下载预编译包）
-make-icon.swift             生成 AppIcon.icns（仅修改图标设计时需要运行）
-AppIcon.icns                应用图标
-tests/                      单元测试与集成测试
-packaging/homebrew/         Homebrew Formula 与 Cask 模板
-.github/workflows/          CI 与发布流程
-.githooks/                  提交前钩子
-```
+构建时可用 `VERSION` 指定版本号、`SIGN_IDENTITY` 指定签名证书。
+CI 运行单元测试并检查构建；本地提交前测试可通过 `git config core.hooksPath .githooks` 启用。
 
 ## 致谢
 
-私有 API 的用法参考了下列开源项目，本项目在此基础上重新实现：
+私有 API 用法参考了以下开源项目：
 
 - [KhaosT/CGVirtualDisplay](https://github.com/KhaosT/CGVirtualDisplay)（Apache-2.0）
 - [pacifistazero/vdisplay](https://github.com/pacifistazero/vdisplay)（MIT）
