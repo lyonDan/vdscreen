@@ -23,7 +23,7 @@
 
 set -euo pipefail
 
-CONFIG_DIR="$HOME/.config/vdscreen"
+CONFIG_DIR="${VDS_CONFIG_DIR:-$HOME/.config/vdscreen}"
 CONFIG="$CONFIG_DIR/config"
 PRESETS="$CONFIG_DIR/presets"
 # Cask 的 CLI 入口是符号链接，核心与真实脚本位于同一个 Resources 目录。
@@ -36,6 +36,8 @@ CORE="$SELF_DIR/vdscreen-core"
 NAME="iPad mini 7"
 SIZE="1133x744"
 ORIENTATION="auto"   # auto=跟随预设 | landscape=锁定横屏 | portrait=锁定竖屏
+LOG_PATH="/tmp/vdscreen.log"
+ERROR_PATH="/tmp/vdscreen.err"
 
 [[ -f "$CONFIG" ]] && source "$CONFIG"
 
@@ -55,6 +57,9 @@ fi
 # 必须在读取配置之后计算，否则配置里改 LABEL 会失效
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 DOMAIN="gui/$(id -u)"
+# 旧 LaunchAgent 标签迁移到默认标签时仍复用同一块显示器、同一份 ICC。
+DISPLAY_IDENTITY="$LABEL"
+[[ "$LABEL" == "com.local.vdscreen.ipadmini7" ]] && DISPLAY_IDENTITY="io.github.lyondan.vdscreen"
 
 say()  { print -r -- "$@" }
 die()  { print -ru2 -- "错误: $@"; exit 1; }
@@ -182,7 +187,7 @@ report_dpi() {
 wait_ready() {
   local i
   for i in {1..80}; do
-    grep -q '已就绪' /tmp/vdscreen.log 2>/dev/null && return 0
+    grep -q '已就绪' "$LOG_PATH" 2>/dev/null && return 0
     (( i > 4 )) && [[ -z "$(current_pid)" ]] && return 1
     sleep 0.25
   done
@@ -210,12 +215,13 @@ write_plist() {
     <string>$(xml_escape "$CORE")</string>
     <string>$SIZE</string>
     <string>$(xml_escape "$NAME")</string>
+    <string>$(xml_escape "$DISPLAY_IDENTITY")</string>
   </array>
   <key>RequestedSize</key><string>${REQUESTED:-$SIZE}</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><false/>
-  <key>StandardOutPath</key><string>/tmp/vdscreen.log</string>
-  <key>StandardErrorPath</key><string>/tmp/vdscreen.err</string>
+  <key>StandardOutPath</key><string>$(xml_escape "$LOG_PATH")</string>
+  <key>StandardErrorPath</key><string>$(xml_escape "$ERROR_PATH")</string>
 </dict>
 </plist>
 EOF
@@ -257,8 +263,8 @@ case "${1:-status}" in
     REQUESTED="$SIZE"
     SIZE="$(normalize_size "$SIZE")"
     write_plist
-    : > /tmp/vdscreen.log
-    : > /tmp/vdscreen.err
+    : > "$LOG_PATH"
+    : > "$ERROR_PATH"
     # 必须先 bootout 再 bootstrap：kickstart 只会用 launchd 缓存的旧配置重启，
     # 改了尺寸/名字它不会重读 plist，切换分辨率就会"没反应"。
     if loaded; then
@@ -268,9 +274,9 @@ case "${1:-status}" in
     launchctl bootstrap "$DOMAIN" "$PLIST"
     if ! wait_ready; then
       print -ru2 -- "警告: 核心没有在预期时间内就绪，显示器可能没创建成功"
-      cat /tmp/vdscreen.err 2>/dev/null >&2 || true
+      cat "$ERROR_PATH" 2>/dev/null >&2 || true
     fi
-    cat /tmp/vdscreen.log 2>/dev/null || true
+    cat "$LOG_PATH" 2>/dev/null || true
     sleep 0.5    # 给 system_profiler 一点时间看到新显示器
     report_dpi "$NAME"
     show_status
@@ -338,8 +344,8 @@ case "${1:-status}" in
     # 分辨率不变；再执行一次即切回。远程时想看到/操作已打开的窗口，把虚拟屏设为主屏即可。
     [[ -n "$(current_pid)" && -f "$PLIST" ]] || die "虚拟屏未开启，先 vdscreen on"
     [[ -x "$CORE" ]] || die "找不到可执行文件 $CORE（先跑 ./build.sh，或 vdscreen install）"
-    vid="$(grep -o 'displayID=[0-9]*' /tmp/vdscreen.log 2>/dev/null | tail -1 | cut -d= -f2 || true)"
-    [[ -n "$vid" ]] || die "日志里找不到 displayID，查看 /tmp/vdscreen.log"
+    vid="$(grep -o 'displayID=[0-9]*' "$LOG_PATH" 2>/dev/null | tail -1 | cut -d= -f2 || true)"
+    [[ -n "$vid" ]] || die "日志里找不到 displayID，查看 $LOG_PATH"
     "$CORE" main "$vid"
     ;;
   preset)

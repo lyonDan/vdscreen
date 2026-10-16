@@ -1,6 +1,6 @@
 // vdscreen - 用私有 CGVirtualDisplay API 创建一块虚拟显示器
 //
-// 用法: vdscreen <逻辑宽>x<逻辑高> [名字]
+// 用法: vdscreen-core <逻辑宽>x<逻辑高> [名字] [稳定身份]
 //   例: vdscreen 1133x744 "iPad mini 7"
 //       得到背板 2266x1488、UI 看起来 1133x744（= iPad mini 7 原生像素）
 //
@@ -13,7 +13,7 @@
 //   1. maxPixels = 逻辑尺寸 × 2
 //   2. sizeInMillimeters = 逻辑尺寸 × 0.254（按 ~100 DPI 折算）
 //   3. modes 同时声明逻辑模式和它的 2× 模式
-//   4. hiDPI = 1，且 vendor/product/serial 唯一
+//   4. hiDPI = 1，且 vendor/product/serial 不与其他在线虚拟屏冲突
 //
 // 但 macOS 只会为"足够大"的虚拟屏提供 HiDPI 模式（观察到宽 ≳ 660 的才有，且并非简单阈值；
 // 窄屏如 402x874、600x800 拿不到）。此时若仍按 2× 申请，系统会退回 1:1，
@@ -24,22 +24,18 @@
 #import <AppKit/AppKit.h>
 #import "CGVirtualDisplayShim.h"
 
-/// 身份由"名字 + 尺寸 + 是否 HiDPI"共同决定（FNV-1a）。
-/// 为什么不只用名字：macOS 会按身份记住上次的模式，若某名字曾被以 LoDPI 使用过，
-/// 之后即使系统本来能给 HiDPI，它的模式表也会缺少 HiDPI 变体 —— 无法挽回。
-/// 尺寸也参与身份后，每个尺寸都是独立身份，能拿 HiDPI 的尺寸不会被他人的偏好污染。
-/// hiDPI 标志也参与：退化为 1:1 的重建用另一个身份，不会把"申请 HiDPI"的身份写成 LoDPI。
-static uint32_t serialFor(NSString *name, int w, int h, BOOL hiDPI) {
+/// ColorSync 按显示器身份保存 ICC。身份只取决于服务，不包含名称、尺寸或 HiDPI，
+/// 因此换预设、横竖切换、退回 1:1 都复用同一份配置。独立服务可传入不同身份。
+static uint32_t serialFor(NSString *identity) {
     uint32_t h_ = 0x811C9DC5;
-    NSString *seed = [NSString stringWithFormat:@"%@|%dx%d|%d", name, w, h, hiDPI ? 2 : 1];
-    for (const uint8_t *p = (const uint8_t *)seed.UTF8String; *p; p++) {
+    for (const uint8_t *p = (const uint8_t *)identity.UTF8String; *p; p++) {
         h_ = (h_ ^ *p) * 0x01000193;
     }
-    return h_;
+    return h_ ?: 1; // 0 表示未指定序列号，不能用作稳定身份
 }
 
-/// hiDPI=YES：申请 2× 背板；hiDPI=NO：1:1（背板 = 逻辑尺寸）
-static CGVirtualDisplay *makeDisplay(NSString *name, int w, int h, BOOL hiDPI) {
+static CGVirtualDisplayDescriptor *makeDescriptor(NSString *name, int w, int h, BOOL hiDPI,
+                                                  NSString *identity) {
     CGVirtualDisplayDescriptor *desc = [[CGVirtualDisplayDescriptor alloc] init];
     desc.queue = dispatch_get_main_queue();
     desc.name = name;
@@ -48,11 +44,16 @@ static CGVirtualDisplay *makeDisplay(NSString *name, int w, int h, BOOL hiDPI) {
     desc.sizeInMillimeters = CGSizeMake(w * 0.254, h * 0.254);
     desc.vendorID = 0x1AB2;
     desc.productID = 0x1234;
-    desc.serialNum = serialFor(name, w, h, hiDPI);
+    desc.serialNum = serialFor(identity);
     desc.terminationHandler = ^(id reason, id display) {
         fprintf(stderr, "虚拟屏被系统移除\n");
     };
+    return desc;
+}
 
+/// hiDPI=YES：申请 2× 背板；hiDPI=NO：1:1（背板 = 逻辑尺寸）
+static CGVirtualDisplay *makeDisplay(NSString *name, int w, int h, BOOL hiDPI, NSString *identity) {
+    CGVirtualDisplayDescriptor *desc = makeDescriptor(name, w, h, hiDPI, identity);
     CGVirtualDisplaySettings *settings = [[CGVirtualDisplaySettings alloc] init];
     settings.hiDPI = hiDPI ? 1 : 0;
     CGVirtualDisplayMode *base =
@@ -76,7 +77,8 @@ static BOOL modeMatches(CGVirtualDisplay *display, int w, int h, BOOL requireHiD
     CGDisplayModeRef mode = CGDisplayCopyDisplayMode((CGDirectDisplayID)[display displayID]);
     if (!mode) return NO;
     BOOL sizeOK = (int)CGDisplayModeGetWidth(mode) == w && (int)CGDisplayModeGetHeight(mode) == h;
-    BOOL hidpiOK = !requireHiDPI || (int)CGDisplayModeGetPixelWidth(mode) == w * 2;
+    BOOL hidpiOK = !requireHiDPI || ((int)CGDisplayModeGetPixelWidth(mode) == w * 2 &&
+                                   (int)CGDisplayModeGetPixelHeight(mode) == h * 2);
     CFRelease(mode);
     return sizeOK && hidpiOK;
 }
@@ -94,7 +96,7 @@ static BOOL modeIsHiDPI(CGVirtualDisplay *display, int w, int h) {
     return modeMatches(display, w, h, YES);
 }
 
-/// macOS 会按"显示器身份"记住上次用过的模式：同一个名字若曾以 LoDPI 使用过，
+/// macOS 会按"显示器身份"记住上次用过的模式：同一个服务若曾以 LoDPI 使用过，
 /// 之后重建时可能仍被套用 LoDPI。这里显式切到 HiDPI 变体（若系统提供了）。
 static BOOL selectHiDPIMode(CGVirtualDisplay *display, int w, int h) {
     CGDirectDisplayID did = (CGDirectDisplayID)[display displayID];
@@ -176,7 +178,7 @@ int main(int argc, char *argv[]) {
             return switchMainDisplay((CGDirectDisplayID)strtoul(argv[2], NULL, 0));
         }
         if (argc < 2) {
-            fprintf(stderr, "用法: %s <逻辑宽>x<逻辑高> [名字]\n例: %s 1133x744 \"iPad mini 7\"\n",
+            fprintf(stderr, "用法: %s <逻辑宽>x<逻辑高> [名字] [稳定身份]\n例: %s 1133x744 \"iPad mini 7\"\n",
                     argv[0], argv[0]);
             return 2;
         }
@@ -187,11 +189,16 @@ int main(int argc, char *argv[]) {
             return 2;
         }
         NSString *name = argc > 2 ? [NSString stringWithUTF8String:argv[2]] : @"Virtual Display";
+        NSString *identity = argc > 3 ? [NSString stringWithUTF8String:argv[3]] : @"io.github.lyondan.vdscreen";
+        if (identity.length == 0) {
+            fprintf(stderr, "稳定身份不能为空\n");
+            return 2;
+        }
 
         // 1) 申请 HiDPI
         // 2) 若系统给了 LoDPI（它可能按显示器身份复用了旧偏好），显式切到 HiDPI 变体
         // 3) 系统确实没有 HiDPI 变体时，才退化为 1:1（比例正确、画面略软）
-        CGVirtualDisplay *display = makeDisplay(name, lw, lh, YES);
+        CGVirtualDisplay *display = makeDisplay(name, lw, lh, YES, identity);
         BOOL gotHiDPI = NO;
         if (display) {
             pumpRunLoop(1.8);
@@ -205,7 +212,7 @@ int main(int argc, char *argv[]) {
             fflush(stdout);
             display = nil;
             pumpRunLoop(0.6);
-            display = makeDisplay(name, lw, lh, NO);
+            display = makeDisplay(name, lw, lh, NO, identity);
             pumpRunLoop(1.8);
         }
         if (!display) {
@@ -228,6 +235,12 @@ int main(int argc, char *argv[]) {
             printf("已就绪：\"%s\"  displayID=%u  UI %dx%d  背板 %dx%d  %s\n",
                    name.UTF8String, (unsigned)[display displayID], lw, lh, pw, ph,
                    gotHiDPI ? "HiDPI" : "非 HiDPI（1:1，画面略软）");
+            CFUUIDRef uuid = CGDisplayCreateUUIDFromDisplayID((CGDirectDisplayID)[display displayID]);
+            if (uuid) {
+                NSString *uuidString = CFBridgingRelease(CFUUIDCreateString(NULL, uuid));
+                printf("身份：serial=%u uuid=%s\n", serialFor(identity), uuidString.UTF8String);
+                CFRelease(uuid);
+            }
             fflush(stdout);
         }
 

@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.." || exit 2
 ROOT="$PWD"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+unset VDS_CONFIG_DIR             # 忽略外部测试配置入口
 export HOME="$TMP/home"          # 隔离配置/预设/plist，绝不碰真实环境
 mkdir -p "$HOME/.config/vdscreen"
 # 即使某条命令误走到"开启"分支，也只会操作一个不存在的 launchd 标签、启动一个空壳核心，
@@ -13,6 +14,18 @@ cat > "$HOME/.config/vdscreen/config" <<CFG
 LABEL="vdscreen.unit-test.$$"
 CORE="/usr/bin/true"
 CFG
+# 不调用真实 launchctl；即使标签隔离失效也无法启动或关闭显示服务。
+mkdir -p "$TMP/bin"
+export VDS_UNIT_LAUNCHCTL_CALLS="$TMP/launchctl-mutations"
+cat > "$TMP/bin/launchctl" <<'SH'
+#!/bin/sh
+if [ "$1" != print ]; then
+  printf '%s\n' "$*" >> "$VDS_UNIT_LAUNCHCTL_CALLS"
+fi
+exit 1
+SH
+chmod +x "$TMP/bin/launchctl"
+export PATH="$TMP/bin:$PATH"
 
 setopt extended_glob
 pass=0; fail=0
@@ -54,6 +67,10 @@ plutil -lint "$PLIST" >/dev/null 2>&1; eq "plist 是合法 XML" 0 $?
 eq "读回名字（含特殊字符）" "$NAME"   "$(current_name)"
 eq "读回画布尺寸"           670x1457  "$(current_size)"
 eq "读回请求尺寸"           804x1748  "$(current_requested)"
+eq "plist 传入稳定服务身份" "$DISPLAY_IDENTITY" "$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:3' "$PLIST")"
+SIZE=744x1133; NAME='另一个预设'; write_plist
+eq "换名称和尺寸保持身份" "$DISPLAY_IDENTITY" "$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:3' "$PLIST")"
+SIZE=670x1457
 eq "plist 不再写 Zoom 键"   0 "$(/usr/libexec/PlistBuddy -c 'Print :Zoom' "$PLIST" 2>/dev/null | grep -c .)"
 unset REQUESTED; write_plist
 eq "无请求尺寸时回落到画布" 670x1457  "$(current_requested)"
@@ -83,12 +100,16 @@ fresh="$TMP/lbl-fresh"; mkdir -p "$fresh"
 eq "默认标签" io.github.lyondan.vdscreen "$(label_of "$fresh")"
 legacy="$TMP/lbl-legacy"; mkdir -p "$legacy/Library/LaunchAgents"; : > "$legacy/Library/LaunchAgents/com.local.vdscreen.ipadmini7.plist"
 eq "旧标签的 plist 还在时沿用旧标签" com.local.vdscreen.ipadmini7 "$(label_of "$legacy")"
+identity_of() { HOME="$1" VDS_LIB=1 zsh -c "source '$ROOT/vdscreen'; print -r -- \$DISPLAY_IDENTITY"; }
+eq "默认身份" io.github.lyondan.vdscreen "$(identity_of "$fresh")"
+eq "旧标签迁移保持默认身份" "$(identity_of "$fresh")" "$(identity_of "$legacy")"
 both="$TMP/lbl-both"; mkdir -p "$both/Library/LaunchAgents"
 : > "$both/Library/LaunchAgents/com.local.vdscreen.ipadmini7.plist"; : > "$both/Library/LaunchAgents/io.github.lyondan.vdscreen.plist"
 eq "新旧并存时用新标签" io.github.lyondan.vdscreen "$(label_of "$both")"
 custom="$TMP/lbl-custom"; mkdir -p "$custom/.config/vdscreen" "$custom/Library/LaunchAgents"
 print 'LABEL="my.label"' > "$custom/.config/vdscreen/config"; : > "$custom/Library/LaunchAgents/com.local.vdscreen.ipadmini7.plist"
 eq "配置里的 LABEL 优先" my.label "$(label_of "$custom")"
+eq "独立服务使用独立身份" my.label "$(identity_of "$custom")"
 HOME="$custom" zsh "$ROOT/vdscreen" set size 1280x800 >/dev/null 2>&1
 eq "set 保留自定义 LABEL" 1 "$(grep -c '^LABEL="my.label"' "$custom/.config/vdscreen/config")"
 HOME="$legacy" zsh "$ROOT/vdscreen" set size 1280x800 >/dev/null 2>&1
@@ -113,6 +134,14 @@ HOME="$TMP/link-home" zsh "$TMP/bin/vdscreen" config >/dev/null 2>&1
 eq "符号链接入口使用 App 内核心" \
   "CORE=\"${TMP:A}/Applications/VDScreenBar.app/Contents/Resources/vdscreen-core\"" \
   "$(head -1 "$TMP/link-home/.config/vdscreen/config")"
+
+# 核心只构造描述符，不实例化 CGVirtualDisplay，不会注册显示器或生成 ICC。
+clang -fobjc-arc -framework Foundation -framework AppKit -framework CoreGraphics \
+  -o "$TMP/core-unit" "$ROOT/tests/core-unit.m"
+eq "核心单元测试编译" 0 $?
+"$TMP/core-unit"
+eq "核心身份回归测试" 0 $?
+[[ ! -s "$VDS_UNIT_LAUNCHCTL_CALLS" ]]; eq "没有调用 launchctl 修改服务" 0 $?
 
 print -r -- "单元测试: 通过 $pass, 失败 $fail"
 (( fail == 0 ))
